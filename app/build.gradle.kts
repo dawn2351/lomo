@@ -27,15 +27,15 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreFile = System.getenv("KEYSTORE_FILE")?.let { file(it) } ?: file("debug.keystore")
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
-            val keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
-            val keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+            val envKeystoreFile = System.getenv("KEYSTORE_FILE")?.let { file(it) } ?: file("debug.keystore")
+            val envKeystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            val envKeyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+            val envKeyPassword = System.getenv("KEY_PASSWORD") ?: "android"
 
-            storeFile = keystoreFile
-            storePassword = keystorePassword
-            keyAlias = keyAlias
-            this.keyPassword = keyPassword
+            storeFile = envKeystoreFile
+            storePassword = envKeystorePassword
+            keyAlias = envKeyAlias
+            keyPassword = envKeyPassword
         }
     }
 
