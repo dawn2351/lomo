@@ -27,10 +27,25 @@ fun ImageViewerScreen(
         .fillMaxSize()
         .background(Color.Black)
     ) {
+    val sharedTransitionScope = com.lomo.ui.util.LocalSharedTransitionScope.current
+    val animatedVisibilityScope = com.lomo.ui.util.LocalAnimatedVisibilityScope.current
+
+    @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+    val sharedModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                rememberSharedContentState(key = url),
+                animatedVisibilityScope = animatedVisibilityScope
+            )
+        }
+    } else {
+        Modifier
+    }
+
         ZoomableAsyncImage(
             model = url,
             contentDescription = "Full screen image",
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(sharedModifier),
             onClick = { onBackClick() } // Tap to dismiss
         )
 

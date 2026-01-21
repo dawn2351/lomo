@@ -59,10 +59,8 @@ internal fun MemoListContent(
             preloadRange.forEach { index ->
                 if (index in 0 until memos.itemCount) {
                     memos.peek(index)?.let { uiModel ->
-                        // Extract image URLs from memo content and preload
-                        val imageRegex = """!\[.*?]\((.*?)\)""".toRegex()
-                        imageRegex.findAll(uiModel.memo.content).forEach { match ->
-                            val imageUrl = match.groupValues[1]
+                        // Use pre-extracted image URLs
+                        uiModel.imageUrls.forEach { imageUrl ->
                             if (imageUrl.isNotBlank()) {
                                 val request = ImageRequest.Builder(context)
                                     .data(imageUrl)

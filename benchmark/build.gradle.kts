@@ -1,7 +1,5 @@
 plugins {
     id("com.android.test")
-    alias(libs.plugins.jetbrainsKotlinAndroid)
-    id("androidx.baselineprofile")
 }
 
 android {
@@ -49,20 +47,21 @@ afterEvaluate {
     }
 }
 
-baselineProfile {
-    useConnectedDevices = true
-}
+// baselineProfile {
+//    useConnectedDevices = true
+// }
 
 dependencies {
     implementation(project(":app"))
     implementation(libs.androidx.junit)
     implementation(libs.androidx.espresso.core)
-    implementation("androidx.benchmark:benchmark-macro-junit4:1.3.3")
+    implementation("androidx.benchmark:benchmark-macro-junit4:1.4.1")
     implementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
 
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        freeCompilerArgs.add("-Xannotation-default-target=param-property")
     }
 }

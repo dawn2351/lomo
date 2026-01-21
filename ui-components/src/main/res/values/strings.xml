@@ -35,4 +35,8 @@
     <string name="cd_add_checkbox">Add Checkbox</string>
     <string name="cd_add_tag">Add Tag</string>
     <string name="cd_send">Send</string>
+    <string name="recording_in_progress">Recording in progress</string>
+    <string name="cd_cancel_recording">Cancel recording</string>
+    <string name="cd_stop_recording">Stop recording</string>
+    <string name="cd_add_voice_memo">Voice Memo</string>
 </resources>

@@ -78,6 +78,8 @@ class DailyReviewViewModel @Inject constructor(
                 }.collect { uiModels ->
                     _uiState.value = UiState.Success(uiModels)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = UiState.Error("Failed to load daily review", e)
             }

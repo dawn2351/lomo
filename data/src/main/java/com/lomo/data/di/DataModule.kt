@@ -100,4 +100,10 @@ object DataModule {
     ): MemoRepository {
         return MemoRepositoryImpl(dao, imageCacheDao, dataSource, synchronizer, parser, dataStore)
     }
+
+    @Provides
+    @Singleton
+    fun provideVoiceRecorder(audioRecorder: com.lomo.data.media.AudioRecorder): com.lomo.domain.repository.VoiceRecorder {
+        return audioRecorder
+    }
 }

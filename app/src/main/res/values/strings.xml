@@ -7,6 +7,7 @@
     <string name="settings_memo_directory">Memo Directory</string>
     <string name="settings_not_set">Not set</string>
     <string name="settings_image_storage">Image Storage</string>
+    <string name="settings_voice_storage">Voice Storage</string>
     <string name="settings_filename_format">Filename Format</string>
     <string name="settings_timestamp_format">Timestamp Format</string>
     <string name="settings_auto_detect">Auto-Detect from Existing Files</string>
@@ -105,4 +106,9 @@
 
     <!-- FAB -->
     <string name="fab_new_memo">New Memo</string>
+
+    <!-- Directory Setup Dialog -->
+    <string name="setup_directory_title">Setup %1$s Directory</string>
+    <string name="setup_directory_message">The %1$s directory is not set. You can manually select one in Settings, or automatically create a \'%2$s\' folder inside your Note directory.</string>
+    <string name="action_auto_create">Auto Create</string>
 </resources>

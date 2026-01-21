@@ -34,6 +34,7 @@ For a long time, I relied on the Thino plugin in Obsidian. While Thino covers th
   - **Daily Review**: Flashback to what you wrote on this day in previous years.
 - **Widgets**: Home screen widgets for quick capture and recent notes.
 - **Search**: Full-text search with indexing.
+- **Voice Recording**: Support for voice memos.
 
 ## Tech Stack
 

@@ -33,7 +33,9 @@ import androidx.appcompat.app.AppCompatActivity
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+    @Inject lateinit var audioPlayerManager: com.lomo.ui.media.AudioPlayerManager
     @Inject lateinit var dataStore: com.lomo.data.local.datastore.LomoDataStore
+    
     private val viewModel: MainViewModel by viewModels()
 
     companion object {
@@ -57,9 +59,13 @@ class MainActivity : AppCompatActivity() {
             LomoTheme(themeMode = themeMode) {
                 ProvideHapticFeedback(dataStore) { hapticEnabled ->
                     com.lomo.ui.util.ProvideAppHapticFeedback(enabled = hapticEnabled) {
-                        LomoApp(
-                            initialAction = intent?.action
-                        )
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            com.lomo.ui.media.LocalAudioPlayerManager provides audioPlayerManager
+                        ) {
+                            LomoApp(
+                                initialAction = intent?.action
+                            )
+                        }
                     }
                 }
             }

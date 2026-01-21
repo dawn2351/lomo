@@ -153,7 +153,12 @@ private fun MDParagraph(
                 while (nodeInside != null) {
                     if (nodeInside is Image) {
                         flush()
-                        result.add(nodeInside)
+                        val dest = nodeInside.destination
+                        if (dest != null && (dest.endsWith(".m4a") || dest.endsWith(".mp3") || dest.endsWith(".aac") || dest.endsWith(".wav"))) {
+                            result.add(VoiceMemoItem(dest))
+                        } else {
+                            result.add(nodeInside)
+                        }
                     } else {
                         currentTextBuilder.appendNode(nodeInside, colorScheme)
                         if (currentTextBuilder.length > 0) hasText = true
@@ -171,6 +176,7 @@ private fun MDParagraph(
             when (item) {
                 is AnnotatedString -> MDText(item, baseStyle)
                 is Image -> MDImage(item, onImageClick)
+                is VoiceMemoItem -> com.lomo.ui.component.media.AudioPlayerCard(relativeFilePath = item.url)
             }
         }
     }
@@ -426,10 +432,25 @@ private fun MDImage(image: Image, onImageClick: ((String) -> Unit)? = null) {
                 }
             }
 
+    val sharedTransitionScope = com.lomo.ui.util.LocalSharedTransitionScope.current
+    val animatedVisibilityScope = com.lomo.ui.util.LocalAnimatedVisibilityScope.current
+
+    @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+    val sharedModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                rememberSharedContentState(key = destination),
+                animatedVisibilityScope = animatedVisibilityScope
+            )
+        }
+    } else {
+        Modifier
+    }
+
     SubcomposeAsyncImage(
             model = model,
             contentDescription = image.title ?: "Image",
-            modifier = modifier,
+            modifier = modifier.then(sharedModifier),
             contentScale = ContentScale.FillWidth
     ) {
         val state by painter.state.collectAsState()
@@ -588,3 +609,5 @@ private fun AnnotatedString.Builder.visitChildren(parent: Node, colorScheme: Col
         child = child.next
     }
 }
+
+private data class VoiceMemoItem(val url: String)

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Brightness6
@@ -45,157 +46,16 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-@HiltViewModel
-class SettingsViewModel
-@Inject
-constructor(
-        private val repository: com.lomo.domain.repository.MemoRepository,
-        private val formatDetector: com.lomo.data.util.FormatDetector,
-        private val fileDataSource: com.lomo.data.source.FileDataSource
-) : ViewModel() {
 
-        val rootDirectory: StateFlow<String> =
-                repository
-                        .getRootDisplayName()
-                        .map { it ?: "" }
-                        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-        val imageDirectory: StateFlow<String> =
-                repository
-                        .getImageDisplayName()
-                        .map { it ?: "" }
-                        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
-
-        val dateFormat: StateFlow<String> =
-                repository
-                        .getDateFormat()
-                        .stateIn(
-                                viewModelScope,
-                                SharingStarted.WhileSubscribed(5000),
-                                com.lomo.data.util.PreferenceKeys.Defaults.DATE_FORMAT
-                        )
-
-        val timeFormat: StateFlow<String> =
-                repository
-                        .getTimeFormat()
-                        .stateIn(
-                                viewModelScope,
-                                SharingStarted.WhileSubscribed(5000),
-                                com.lomo.data.util.PreferenceKeys.Defaults.TIME_FORMAT
-                        )
-
-        val themeMode: StateFlow<String> =
-                repository
-                        .getThemeMode()
-                        .stateIn(
-                                viewModelScope,
-                                SharingStarted.WhileSubscribed(5000),
-                                com.lomo.data.util.PreferenceKeys.Defaults.THEME_MODE
-                        )
-
-        val hapticFeedbackEnabled: StateFlow<Boolean> =
-                repository
-                        .isHapticFeedbackEnabled()
-                        .stateIn(
-                                viewModelScope,
-                                SharingStarted.WhileSubscribed(5000),
-                                com.lomo.data.util.PreferenceKeys.Defaults.HAPTIC_FEEDBACK_ENABLED
-                        )
-
-        val storageFilenameFormat: StateFlow<String> =
-                repository
-                        .getStorageFilenameFormat()
-                        .stateIn(
-                                viewModelScope,
-                                SharingStarted.WhileSubscribed(5000),
-                                com.lomo.data.util.PreferenceKeys.Defaults.STORAGE_FILENAME_FORMAT
-                        )
-
-        val storageTimestampFormat: StateFlow<String> =
-                repository
-                        .getStorageTimestampFormat()
-                        .stateIn(
-                                viewModelScope,
-                                SharingStarted.WhileSubscribed(5000),
-                                com.lomo.data.util.PreferenceKeys.Defaults.STORAGE_TIMESTAMP_FORMAT
-                        )
-
-        fun updateRootDirectory(path: String) {
-                viewModelScope.launch { repository.setRootDirectory(path) }
-        }
-
-        fun updateRootUri(uriString: String) {
-                viewModelScope.launch { repository.updateRootUri(uriString) }
-        }
-
-        fun updateImageDirectory(path: String) {
-                viewModelScope.launch { repository.setImageDirectory(path) }
-        }
-
-        fun updateImageUri(uriString: String) {
-                viewModelScope.launch { repository.updateImageUri(uriString) }
-        }
-
-        fun updateDateFormat(format: String) {
-                viewModelScope.launch { repository.setDateFormat(format) }
-        }
-
-        fun updateTimeFormat(format: String) {
-                viewModelScope.launch { repository.setTimeFormat(format) }
-        }
-
-        fun updateThemeMode(mode: String) {
-                viewModelScope.launch { repository.setThemeMode(mode) }
-        }
-
-        fun updateStorageFilenameFormat(format: String) {
-                viewModelScope.launch { repository.setStorageFilenameFormat(format) }
-        }
-
-        fun updateStorageTimestampFormat(format: String) {
-                viewModelScope.launch { repository.setStorageTimestampFormat(format) }
-        }
-
-        fun autoDetectFormats() {
-                viewModelScope.launch {
-                        // We need to access files to detect.
-                        // Repository abstracts PagingData but we need raw list.
-                        // We can use FileDataSource directly if exposed or added to Repo.
-                        // Added FileDataSource to constructor for this utility access.
-
-                        try {
-                                val files = fileDataSource.listFiles()
-                                if (files.isEmpty()) return@launch
-
-                                val filenames = files.map { it.filename }
-                                val contents = files.map { it.content.lines().firstOrNull() ?: "" }
-
-                                val (detectedFilename, detectedTimestamp) =
-                                        formatDetector.detectFormats(filenames, contents)
-
-                                if (detectedFilename != null) {
-                                        repository.setStorageFilenameFormat(detectedFilename)
-                                }
-                                if (detectedTimestamp != null) {
-                                        repository.setStorageTimestampFormat(detectedTimestamp)
-                                }
-                        } catch (e: Exception) {
-                                // Log error
-                                android.util.Log.e("SettingsViewModel", "Auto-detect failed", e)
-                        }
-                }
-        }
-
-        fun updateHapticFeedback(enabled: Boolean) {
-                viewModelScope.launch { repository.setHapticFeedbackEnabled(enabled) }
-        }
-}
+// ...
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBackClick: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
         val rootDir by viewModel.rootDirectory.collectAsStateWithLifecycle()
         val imageDir by viewModel.imageDirectory.collectAsStateWithLifecycle()
+        val voiceDir by viewModel.voiceDirectory.collectAsStateWithLifecycle()
         val dateFormat by viewModel.dateFormat.collectAsStateWithLifecycle()
         val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
         val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
@@ -255,6 +115,20 @@ fun SettingsScreen(onBackClick: () -> Unit, viewModel: SettingsViewModel = hiltV
                         }
                 }
 
+        // Launcher for voice directory
+        val voiceLauncher =
+                rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.OpenDocumentTree()
+                ) { uri ->
+                        uri?.let {
+                                val flags =
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                context.contentResolver.takePersistableUriPermission(it, flags)
+                                viewModel.updateVoiceUri(it.toString())
+                        }
+                }
+
         val haptic = com.lomo.ui.util.LocalAppHapticFeedback.current
 
         val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -308,6 +182,15 @@ fun SettingsScreen(onBackClick: () -> Unit, viewModel: SettingsViewModel = hiltV
                                 else androidx.compose.ui.res.stringResource(com.lomo.app.R.string.settings_not_set),
                             icon = Icons.Outlined.PhotoLibrary,
                             onClick = { imageLauncher.launch(null) }
+                        )
+
+                        PreferenceItem(
+                            title = androidx.compose.ui.res.stringResource(com.lomo.app.R.string.settings_voice_storage), // Needed to add string resource
+                            subtitle =
+                                if (voiceDir.isNotEmpty()) voiceDir
+                                else androidx.compose.ui.res.stringResource(com.lomo.app.R.string.settings_not_set),
+                            icon = Icons.Default.Audiotrack, // Need to import Audiotrack or similar
+                            onClick = { voiceLauncher.launch(null) }
                         )
 
                         val filenameFormatVal by

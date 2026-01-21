@@ -62,13 +62,25 @@ class TagFilterViewModel @Inject constructor(
 
     fun deleteMemo(memo: Memo) {
         viewModelScope.launch {
-             memoRepository.deleteMemo(memo)
+            try {
+                memoRepository.deleteMemo(memo)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("TagFilterViewModel", "Failed to delete memo", e)
+            }
         }
     }
 
     fun updateMemo(memo: Memo, newContent: String) {
         viewModelScope.launch {
-            memoRepository.updateMemo(memo, newContent)
+            try {
+                memoRepository.updateMemo(memo, newContent)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("TagFilterViewModel", "Failed to update memo", e)
+            }
         }
     }
 }

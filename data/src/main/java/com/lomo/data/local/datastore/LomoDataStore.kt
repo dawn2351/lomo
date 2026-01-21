@@ -40,6 +40,8 @@ class LomoDataStore @Inject constructor(@ApplicationContext private val context:
         val ROOT_DIRECTORY = stringPreferencesKey(PreferenceKeys.ROOT_DIRECTORY)
         val IMAGE_URI = stringPreferencesKey(PreferenceKeys.IMAGE_URI)
         val IMAGE_DIRECTORY = stringPreferencesKey(PreferenceKeys.IMAGE_DIRECTORY)
+        val VOICE_URI = stringPreferencesKey("voice_uri")
+        val VOICE_DIRECTORY = stringPreferencesKey("voice_directory")
         val STORAGE_FILENAME_FORMAT = stringPreferencesKey(PreferenceKeys.STORAGE_FILENAME_FORMAT)
         val STORAGE_TIMESTAMP_FORMAT = stringPreferencesKey(PreferenceKeys.STORAGE_TIMESTAMP_FORMAT)
         val DATE_FORMAT = stringPreferencesKey(PreferenceKeys.DATE_FORMAT)
@@ -77,6 +79,18 @@ class LomoDataStore @Inject constructor(@ApplicationContext private val context:
     val imageDirectory: Flow<String?> =
             dataStore.data.map { prefs -> prefs[Keys.IMAGE_DIRECTORY] }.catch { e ->
                 timber.log.Timber.e("LomoDataStore", "Error in imageDirectory flow", e)
+                emit(null)
+            }
+
+    val voiceUri: Flow<String?> =
+            dataStore.data.map { prefs -> prefs[Keys.VOICE_URI] }.catch { e ->
+                timber.log.Timber.e("LomoDataStore", "Error in voiceUri flow", e)
+                emit(null)
+            }
+
+    val voiceDirectory: Flow<String?> =
+            dataStore.data.map { prefs -> prefs[Keys.VOICE_DIRECTORY] }.catch { e ->
+                timber.log.Timber.e("LomoDataStore", "Error in voiceDirectory flow", e)
                 emit(null)
             }
 
@@ -190,6 +204,27 @@ class LomoDataStore @Inject constructor(@ApplicationContext private val context:
                 prefs[Keys.IMAGE_DIRECTORY] = path
             } else {
                 prefs.remove(Keys.IMAGE_DIRECTORY)
+            }
+        }
+    }
+
+    suspend fun updateVoiceUri(uri: String?) {
+        dataStore.edit { prefs ->
+            if (uri != null) {
+                prefs[Keys.VOICE_URI] = uri
+                prefs.remove(Keys.VOICE_DIRECTORY)
+            } else {
+                prefs.remove(Keys.VOICE_URI)
+            }
+        }
+    }
+
+    suspend fun updateVoiceDirectory(path: String?) {
+        dataStore.edit { prefs ->
+            if (path != null) {
+                prefs[Keys.VOICE_DIRECTORY] = path
+            } else {
+                prefs.remove(Keys.VOICE_DIRECTORY)
             }
         }
     }

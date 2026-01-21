@@ -7,6 +7,8 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import com.lomo.domain.model.Memo
 import com.lomo.domain.repository.MemoRepository
+import com.lomo.domain.repository.WidgetRepository
+import com.lomo.domain.repository.VoiceRecorder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -20,9 +22,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.lomo.app.widget.WidgetUpdater
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @HiltViewModel
 class MainViewModel
@@ -34,8 +39,131 @@ constructor(
         private val imageMapProvider: com.lomo.domain.provider.ImageMapProvider,
         private val textProcessor: com.lomo.data.util.MemoTextProcessor,
         private val getFilteredMemosUseCase: com.lomo.domain.usecase.GetFilteredMemosUseCase,
-        @ApplicationContext private val appContext: Context
+        private val voiceRecorder: VoiceRecorder,
+        private val widgetRepository: WidgetRepository,
+        private val audioPlayerManager: com.lomo.ui.media.AudioPlayerManager
 ) : ViewModel() {
+
+    // ... existing code ...
+
+    // Recording State
+    private val _isRecording = MutableStateFlow(false)
+    val isRecording: StateFlow<Boolean> = _isRecording
+
+    private val _recordingDuration = MutableStateFlow(0L)
+    val recordingDuration: StateFlow<Long> = _recordingDuration
+
+    private val _recordingAmplitude = MutableStateFlow(0)
+    val recordingAmplitude: StateFlow<Int> = _recordingAmplitude
+
+    private var recordingJob: kotlinx.coroutines.Job? = null
+
+    // ... existing code ...
+
+    private var currentRecordingUri: android.net.Uri? = null
+    private var currentRecordingFilename: String? = null
+
+    fun startRecording() {
+        if (_rootDirectory.value == null) {
+            _errorMessage.value = "Please select a folder first"
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                val filename = "voice_$timestamp.m4a"
+                
+                // 1. Create file via repository (handles Voice Backend logic)
+                val uri = repository.createVoiceFile(filename)
+                
+                currentRecordingUri = uri
+                currentRecordingFilename = filename
+                
+                // 2. Start recording to the file URI
+                voiceRecorder.start(uri)
+                _isRecording.value = true
+                _recordingDuration.value = 0
+                
+                startRecordingTimer()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to start recording: ${e.message}"
+                cancelRecording()
+            }
+        }
+    }
+
+    private fun startRecordingTimer() {
+        recordingJob?.cancel()
+        recordingJob = viewModelScope.launch {
+            val startTime = System.currentTimeMillis()
+            while (isActive) {
+                _recordingDuration.value = System.currentTimeMillis() - startTime
+                _recordingAmplitude.value = voiceRecorder.getAmplitude()
+                delay(50) // Update every 50ms for smooth visualizer
+            }
+        }
+    }
+
+    fun stopRecording(onResult: (String) -> Unit) {
+        if (!_isRecording.value) return
+        
+        try {
+            voiceRecorder.stop()
+            recordingJob?.cancel()
+            _isRecording.value = false
+            _recordingDuration.value = 0
+            _recordingAmplitude.value = 0
+            
+            val uri = currentRecordingUri
+            val filename = currentRecordingFilename
+            
+            if (uri != null && filename != null) {
+                // Use just the filename - voice directory is resolved by AudioPlayerManager
+                val markdown = "![voice]($filename)"
+                onResult(markdown)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _errorMessage.value = "Failed to stop recording: ${e.message}"
+        }
+        currentRecordingUri = null
+        currentRecordingFilename = null
+    }
+
+    fun cancelRecording() {
+        try {
+            voiceRecorder.stop()
+            recordingJob?.cancel()
+            _isRecording.value = false
+            _recordingDuration.value = 0
+            _recordingAmplitude.value = 0
+            
+            val filename = currentRecordingFilename
+            if (filename != null) {
+                viewModelScope.launch {
+                    try {
+                        repository.deleteVoiceFile(filename)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+             currentRecordingUri = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        currentRecordingUri = null
+        currentRecordingFilename = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        cancelRecording() // Safety cleanup
+    }
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
@@ -75,6 +203,22 @@ constructor(
             repository
                     .getImageDirectory()
                     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val voiceDirectory: StateFlow<String?> =
+            repository
+                    .getVoiceDirectory()
+                    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun createDefaultDirectories(forImage: Boolean, forVoice: Boolean) {
+        viewModelScope.launch {
+            if (forImage) {
+                repository.createDefaultImageDirectory()
+            }
+            if (forVoice) {
+                repository.createDefaultVoiceDirectory()
+            }
+        }
+    }
 
     // Image map provided by shared ImageMapProvider (P2-001 refactor)
     val imageMap: StateFlow<Map<String, android.net.Uri>> = imageMapProvider.imageMap
@@ -137,6 +281,8 @@ constructor(
         viewModelScope.launch {
             try {
                 repository.refreshMemos()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = e.message
             }
@@ -161,7 +307,9 @@ constructor(
             try {
                 repository.saveMemo(content)
                 // Update widget after adding memo
-                WidgetUpdater.updateAllWidgets(appContext)
+                widgetRepository.updateAllWidgets()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = e.message
             }
@@ -173,7 +321,9 @@ constructor(
             try {
                 repository.deleteMemo(memo)
                 // Update widget after deleting memo
-                WidgetUpdater.updateAllWidgets(appContext)
+                widgetRepository.updateAllWidgets()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = e.message
             }
@@ -185,7 +335,9 @@ constructor(
             try {
                 repository.updateMemo(memo, newContent)
                 // Update widget after updating memo
-                WidgetUpdater.updateAllWidgets(appContext)
+                widgetRepository.updateAllWidgets()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = e.message
             }
@@ -212,10 +364,10 @@ constructor(
                 repository.updateMemo(memo, newContent)
                 // Widget will be updated by repository or we can trigger it here if needed
                 // WidgetUpdater.updateAllWidgets(appContext)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e !is kotlinx.coroutines.CancellationException) {
-                    _errorMessage.value = "Failed to update todo: ${e.message}"
-                }
+                _errorMessage.value = "Failed to update todo: ${e.message}"
             } finally {
                 // 4. After successful write (or error), clear the override ONLY if this is still the active job
                 // This prevents older out-of-order writes from clearing a newer optimistic state
@@ -238,7 +390,10 @@ constructor(
                 val path = repository.saveImage(uri)
                 // Sync image cache immediately so new image is available for display
                 repository.syncImageCache()
+                repository.syncImageCache()
                 onResult(path)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to save image: ${e.message}"
             }
@@ -254,6 +409,7 @@ constructor(
             // Step 1: Get initial value and set state immediately
             val initialDir = repository.getRootDirectoryOnce()
             _rootDirectory.value = initialDir
+            audioPlayerManager.setRootDirectory(initialDir)
             _uiState.value = if (initialDir == null) {
                 MainScreenState.NoDirectory
             } else {
@@ -265,12 +421,20 @@ constructor(
                 .drop(1)
                 .collect { dir ->
                     _rootDirectory.value = dir
+                    audioPlayerManager.setRootDirectory(dir)
                     _uiState.value = if (dir == null) {
                         MainScreenState.NoDirectory
                     } else {
                         MainScreenState.Ready(hasData = true)
                     }
                 }
+        }
+
+        // Voice directory collector - pass to AudioPlayerManager for voice file resolution
+        viewModelScope.launch {
+            repository.getVoiceDirectory().collect { voiceDir ->
+                audioPlayerManager.setVoiceDirectory(voiceDir)
+            }
         }
 
         // Initial image load
@@ -354,7 +518,8 @@ data class MemoUiModel(
         val memo: Memo,
         val processedContent: String,
         val markdownNode: com.lomo.ui.component.markdown.ImmutableNode,
-        val tags: ImmutableList<String>
+        val tags: ImmutableList<String>,
+        val imageUrls: ImmutableList<String> = kotlinx.collections.immutable.persistentListOf()
 )
 
 // MainUiState removed

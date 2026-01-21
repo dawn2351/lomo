@@ -109,127 +109,150 @@ fun LomoNavHost(navController: NavHostController) {
         )
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = NavRoute.Main,
-        enterTransition = { enterTransition() },
-        exitTransition = { exitTransition() },
-        popEnterTransition = { popEnterTransition() },
-        popExitTransition = { popExitTransition() }
-    ) {
-        composable<NavRoute.Main> {
-            MainScreen(
-                onNavigateToSettings = { navController.navigate(NavRoute.Settings) },
-                onNavigateToTrash = { navController.navigate(NavRoute.Trash) },
-                onNavigateToSearch = { navController.navigate(NavRoute.Search) },
-                onNavigateToMemo = { _, _ -> },
-                onNavigateToTag = { tag -> navController.navigate(NavRoute.Tag(tag)) },
-                onNavigateToImage = { url ->
-                    val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
-                    navController.navigate(NavRoute.ImageViewer(encoded))
-                },
-                onNavigateToDailyReview = { navController.navigate(NavRoute.DailyReview) }
-            )
-        }
-
-        composable<NavRoute.Settings> {
-            SettingsScreen(
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable<NavRoute.Trash> {
-            TrashScreen(
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable<NavRoute.Search> {
-            SearchScreen(
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable<NavRoute.Tag> { backStackEntry ->
-            val tag = backStackEntry.toRoute<NavRoute.Tag>()
-            TagFilterScreen(
-                tagName = tag.tagName,
-                onBackClick = { navController.popBackStack() },
-                onNavigateToImage = { url ->
-                    val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
-                    navController.navigate(NavRoute.ImageViewer(encoded))
+    @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+    androidx.compose.animation.SharedTransitionLayout {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.lomo.ui.util.LocalSharedTransitionScope provides this
+        ) {
+            NavHost(
+                navController = navController,
+                startDestination = NavRoute.Main,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() }
+            ) {
+                composable<NavRoute.Main> {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.lomo.ui.util.LocalAnimatedVisibilityScope provides this
+                    ) {
+                        MainScreen(
+                            onNavigateToSettings = { navController.navigate(NavRoute.Settings) },
+                            onNavigateToTrash = { navController.navigate(NavRoute.Trash) },
+                            onNavigateToSearch = { navController.navigate(NavRoute.Search) },
+                            onNavigateToMemo = { _, _ -> },
+                            onNavigateToTag = { tag -> navController.navigate(NavRoute.Tag(tag)) },
+                            onNavigateToImage = { url ->
+                                val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
+                                navController.navigate(NavRoute.ImageViewer(encoded))
+                            },
+                            onNavigateToDailyReview = { navController.navigate(NavRoute.DailyReview) }
+                        )
+                    }
                 }
-            )
-        }
 
-        composable<NavRoute.DailyReview> {
-            com.lomo.app.feature.review.DailyReviewScreen(
-                onBackClick = { navController.popBackStack() },
-                onNavigateToImage = { url ->
-                    val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
-                    navController.navigate(NavRoute.ImageViewer(encoded))
+                composable<NavRoute.Settings> {
+                    SettingsScreen(
+                        onBackClick = { navController.popBackStack() }
+                    )
                 }
-            )
-        }
 
-        // ImageViewer with custom fade + scale animation
-        composable<NavRoute.ImageViewer>(
-            enterTransition = {
-                fadeIn(
-                    animationSpec = tween(
-                        durationMillis = MotionTokens.DurationMedium2,
-                        easing = MotionTokens.EasingEmphasizedDecelerate
+                composable<NavRoute.Trash> {
+                    TrashScreen(
+                        onBackClick = { navController.popBackStack() }
                     )
-                ) + scaleIn(
-                    initialScale = 0.92f,
-                    animationSpec = tween(
-                        durationMillis = MotionTokens.DurationMedium2,
-                        easing = MotionTokens.EasingEmphasizedDecelerate
+                }
+
+                composable<NavRoute.Search> {
+                    SearchScreen(
+                        onBackClick = { navController.popBackStack() }
                     )
-                )
-            },
-            exitTransition = {
-                fadeOut(
-                    animationSpec = tween(
-                        durationMillis = MotionTokens.DurationShort4,
-                        easing = MotionTokens.EasingEmphasizedAccelerate
-                    )
-                ) + scaleOut(
-                    targetScale = 1.05f,
-                    animationSpec = tween(
-                        durationMillis = MotionTokens.DurationShort4,
-                        easing = MotionTokens.EasingEmphasizedAccelerate
-                    )
-                )
-            },
-            popEnterTransition = {
-                fadeIn(
-                    animationSpec = tween(
-                        durationMillis = MotionTokens.DurationMedium1
-                    )
-                )
-            },
-            popExitTransition = {
-                fadeOut(
-                    animationSpec = tween(
-                        durationMillis = MotionTokens.DurationMedium2,
-                        easing = MotionTokens.EasingEmphasizedAccelerate
-                    )
-                ) + scaleOut(
-                    targetScale = 0.92f,
-                    animationSpec = tween(
-                        durationMillis = MotionTokens.DurationMedium2,
-                        easing = MotionTokens.EasingEmphasizedAccelerate
-                    )
-                )
+                }
+
+                composable<NavRoute.Tag> { backStackEntry ->
+                    val tag = backStackEntry.toRoute<NavRoute.Tag>()
+                    androidx.compose.runtime.CompositionLocalProvider(
+                         com.lomo.ui.util.LocalAnimatedVisibilityScope provides this
+                    ) {
+                        TagFilterScreen(
+                            tagName = tag.tagName,
+                            onBackClick = { navController.popBackStack() },
+                            onNavigateToImage = { url ->
+                                val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
+                                navController.navigate(NavRoute.ImageViewer(encoded))
+                            }
+                        )
+                    }
+                }
+
+                composable<NavRoute.DailyReview> {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.lomo.ui.util.LocalAnimatedVisibilityScope provides this
+                    ) {
+                        com.lomo.app.feature.review.DailyReviewScreen(
+                            onBackClick = { navController.popBackStack() },
+                            onNavigateToImage = { url ->
+                                val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
+                                navController.navigate(NavRoute.ImageViewer(encoded))
+                            }
+                        )
+                    }
+                }
+
+                // ImageViewer with custom fade + scale animation
+                composable<NavRoute.ImageViewer>(
+                    enterTransition = {
+                        fadeIn(
+                            animationSpec = tween(
+                                durationMillis = MotionTokens.DurationMedium2,
+                                easing = MotionTokens.EasingEmphasizedDecelerate
+                            )
+                        ) + scaleIn(
+                            initialScale = 0.92f,
+                            animationSpec = tween(
+                                durationMillis = MotionTokens.DurationMedium2,
+                                easing = MotionTokens.EasingEmphasizedDecelerate
+                            )
+                        )
+                    },
+                    exitTransition = {
+                        fadeOut(
+                            animationSpec = tween(
+                                durationMillis = MotionTokens.DurationShort4,
+                                easing = MotionTokens.EasingEmphasizedAccelerate
+                            )
+                        ) + scaleOut(
+                            targetScale = 1.05f,
+                            animationSpec = tween(
+                                durationMillis = MotionTokens.DurationShort4,
+                                easing = MotionTokens.EasingEmphasizedAccelerate
+                            )
+                        )
+                    },
+                    popEnterTransition = {
+                        fadeIn(
+                            animationSpec = tween(
+                                durationMillis = MotionTokens.DurationMedium1
+                            )
+                        )
+                    },
+                    popExitTransition = {
+                        fadeOut(
+                            animationSpec = tween(
+                                durationMillis = MotionTokens.DurationMedium2,
+                                easing = MotionTokens.EasingEmphasizedAccelerate
+                            )
+                        ) + scaleOut(
+                            targetScale = 0.92f,
+                            animationSpec = tween(
+                                durationMillis = MotionTokens.DurationMedium2,
+                                easing = MotionTokens.EasingEmphasizedAccelerate
+                            )
+                        )
+                    }
+                ) { entry ->
+                    val route = entry.toRoute<NavRoute.ImageViewer>()
+                    val decodedUrl = URLDecoder.decode(route.url, StandardCharsets.UTF_8.toString())
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.lomo.ui.util.LocalAnimatedVisibilityScope provides this
+                    ) {
+                        ImageViewerScreen(
+                            url = decodedUrl,
+                            onBackClick = { navController.popBackStack() }
+                        )
+                    }
+                }
             }
-        ) { entry ->
-            val route = entry.toRoute<NavRoute.ImageViewer>()
-            val decodedUrl = URLDecoder.decode(route.url, StandardCharsets.UTF_8.toString())
-            ImageViewerScreen(
-                url = decodedUrl,
-                onBackClick = { navController.popBackStack() }
-            )
         }
     }
 }

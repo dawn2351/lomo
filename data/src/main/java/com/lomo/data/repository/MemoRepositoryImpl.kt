@@ -51,6 +51,9 @@ constructor(
     override fun getImageDirectory(): Flow<String?> = dataSource.getImageRootFlow()
     override fun getImageDisplayName(): Flow<String?> = dataSource.getImageRootDisplayNameFlow()
 
+    override fun getVoiceDirectory(): Flow<String?> = dataSource.getVoiceRootFlow()
+    override fun getVoiceDisplayName(): Flow<String?> = dataSource.getVoiceRootDisplayNameFlow()
+
     override suspend fun updateRootUri(uri: String?) {
         // Clear entire database cache when switching root directory
         dao.clearAll()
@@ -64,6 +67,14 @@ constructor(
 
     override suspend fun updateImageUri(uri: String?) {
         dataStore.updateImageUri(uri)
+    }
+
+    override suspend fun setVoiceDirectory(path: String) {
+        dataSource.setVoiceRoot(path)
+    }
+
+    override suspend fun updateVoiceUri(uri: String?) {
+        dataStore.updateVoiceUri(uri)
     }
 
     override fun getAllMemos(): Flow<PagingData<Memo>> {
@@ -189,9 +200,17 @@ constructor(
         return dataSource.saveImage(uri)
     }
 
+    override suspend fun createVoiceFile(filename: String): Uri {
+        return dataSource.createVoiceFile(filename)
+    }
+
+    override suspend fun deleteVoiceFile(filename: String) {
+        dataSource.deleteVoiceFile(filename)
+    }
+
     override fun getImageUriMap(): Flow<Map<String, String>> {
-        return imageCacheDao.getAllImages().map { list ->
-            list.associate { it.filename to it.uriString }
+        return imageCacheDao.getAllImages().map { entities ->
+            entities.associate { it.filename to it.uriString }
         }
     }
 
@@ -263,5 +282,25 @@ constructor(
 
     override suspend fun setStorageTimestampFormat(format: String) {
         dataStore.updateStorageTimestampFormat(format)
+    }
+
+    override suspend fun createDefaultImageDirectory(): String? {
+        return try {
+            val uri = dataSource.createDirectory("images")
+            setImageDirectory(uri)
+            uri
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    override suspend fun createDefaultVoiceDirectory(): String? {
+        return try {
+            val uri = dataSource.createDirectory("voice")
+            setVoiceDirectory(uri)
+            uri
+        } catch (e: Exception) {
+            null
+        }
     }
 }

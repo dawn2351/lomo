@@ -11,7 +11,7 @@ import java.io.File
  */
 class DirectStorageBackend(
     private val rootDir: File
-) : StorageBackend, ImageStorageBackend {
+) : StorageBackend, ImageStorageBackend, VoiceStorageBackend {
 
     private val trashDir: File get() = File(rootDir, ".trash")
 
@@ -167,5 +167,35 @@ class DirectStorageBackend(
                 timber.log.Timber.e(e, "Failed to delete image: $filename")
             }
             Unit
+        }
+
+    // --- Voice operations (VoiceStorageBackend) ---
+
+    override suspend fun createVoiceFile(filename: String): Uri =
+        withContext(Dispatchers.IO) {
+            ensureRootExists()
+            val file = File(rootDir, filename)
+            // Return file:// URI
+            Uri.fromFile(file)
+        }
+
+    override suspend fun deleteVoiceFile(filename: String) =
+        withContext(Dispatchers.IO) {
+             try {
+                val file = File(rootDir, filename)
+                if (file.exists()) file.delete()
+            } catch (e: Exception) {
+                timber.log.Timber.e(e, "Failed to delete voice file: $filename")
+            }
+            Unit
+        }
+    override suspend fun createDirectory(name: String): String =
+        withContext(Dispatchers.IO) {
+            ensureRootExists()
+            val dir = File(rootDir, name)
+            if (!dir.exists()) {
+                if (!dir.mkdirs()) throw java.io.IOException("Cannot create directory $name")
+            }
+            dir.absolutePath
         }
 }

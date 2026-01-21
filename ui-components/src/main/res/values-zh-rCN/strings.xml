@@ -10,7 +10,7 @@
     <string name="stat_tag">标签</string>
     <string name="stat_day">天数</string>
     
-    <string name="cd_consume_touches">Consume touches</string>
+    <string name="cd_consume_touches">消费触摸事件</string>
     <string name="cd_expand">展开</string>
     <string name="cd_collapse">折叠</string>
 
@@ -32,4 +32,8 @@
     <string name="cd_add_checkbox">添加复选框</string>
     <string name="cd_add_tag">添加标签</string>
     <string name="cd_send">发送</string>
+    <string name="recording_in_progress">正在录音</string>
+    <string name="cd_cancel_recording">取消录音</string>
+    <string name="cd_stop_recording">停止录音</string>
+    <string name="cd_add_voice_memo">录制语音</string>
 </resources>

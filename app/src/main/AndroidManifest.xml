@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Storage permissions removed: App uses SAF (Storage Access Framework) which does not require these permissions -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:name=".LomoApplication"

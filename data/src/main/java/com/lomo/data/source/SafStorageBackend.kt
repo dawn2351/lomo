@@ -15,10 +15,18 @@ import java.io.InputStreamReader
  */
 class SafStorageBackend(
     private val context: Context,
-    private val rootUri: Uri
-) : StorageBackend, ImageStorageBackend {
+    private val rootUri: Uri,
+    private val subDir: String? = null
+) : StorageBackend, ImageStorageBackend, VoiceStorageBackend {
 
-    private fun getRoot(): DocumentFile? = DocumentFile.fromTreeUri(context, rootUri)
+    private fun getRoot(): DocumentFile? {
+        val root = DocumentFile.fromTreeUri(context, rootUri) ?: return null
+        return if (subDir != null) {
+            root.findFile(subDir) ?: root.createDirectory(subDir)
+        } else {
+            root
+        }
+    }
     
     private fun getTrashDir(): DocumentFile? = getRoot()?.findFile(".trash")
     
@@ -331,5 +339,44 @@ class SafStorageBackend(
                 timber.log.Timber.e(e, "Failed to delete image: $filename")
             }
             Unit
+        }
+
+    // --- Voice operations (VoiceStorageBackend) ---
+
+    override suspend fun createVoiceFile(filename: String): Uri =
+        withContext(Dispatchers.IO) {
+            val root = getRoot() ?: throw java.io.IOException("Cannot access voice directory")
+            
+            // Guess mime type from filename
+            val extension = filename.substringAfterLast('.', "m4a")
+            val mimeType = when(extension) {
+                "m4a" -> "audio/mp4"
+                "mp3" -> "audio/mpeg"
+                "aac" -> "audio/aac"
+                else -> "audio/mp4"
+            }
+
+            val file = root.createFile(mimeType, filename) 
+                ?: throw java.io.IOException("Cannot create voice file")
+            file.uri
+        }
+
+    override suspend fun deleteVoiceFile(filename: String) =
+        withContext(Dispatchers.IO) {
+            try {
+                val root = getRoot()
+                root?.findFile(filename)?.delete()
+            } catch (e: Exception) {
+                timber.log.Timber.e(e, "Failed to delete voice file: $filename")
+            }
+            Unit
+        }
+
+    override suspend fun createDirectory(name: String): String =
+        withContext(Dispatchers.IO) {
+            val root = getRoot() ?: throw java.io.IOException("Cannot access root directory")
+            val dir = root.findFile(name) ?: root.createDirectory(name) 
+                ?: throw java.io.IOException("Cannot create directory $name")
+            dir.uri.toString()
         }
 }

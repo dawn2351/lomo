@@ -16,6 +16,15 @@ interface MemoRepository {
     fun getImageDisplayName(): Flow<String?> // New
     suspend fun updateRootUri(uri: String?)
     suspend fun updateImageUri(uri: String?)
+    
+    // Voice
+    suspend fun setVoiceDirectory(path: String)
+    fun getVoiceDirectory(): Flow<String?>
+    fun getVoiceDisplayName(): Flow<String?>
+    suspend fun updateVoiceUri(uri: String?)
+    
+    suspend fun createDefaultImageDirectory(): String?
+    suspend fun createDefaultVoiceDirectory(): String?
 
     // Data operations
     fun getAllMemos(): Flow<PagingData<Memo>>
@@ -45,8 +54,10 @@ interface MemoRepository {
     suspend fun restoreMemo(memo: Memo)
     suspend fun deletePermanently(memo: Memo)
 
-    // Images
+    // Images & Voice
     suspend fun saveImage(uri: android.net.Uri): String
+    suspend fun createVoiceFile(filename: String): android.net.Uri
+    suspend fun deleteVoiceFile(filename: String)
     fun getImageUriMap(): Flow<Map<String, String>>
     suspend fun syncImageCache()
 

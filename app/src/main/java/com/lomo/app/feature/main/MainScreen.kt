@@ -1,4 +1,5 @@
 package com.lomo.app.feature.main
+import com.lomo.app.R
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -19,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.TextRange
@@ -78,21 +80,22 @@ fun MainScreen(
         viewModel: MainViewModel = hiltViewModel(),
         sidebarViewModel: SidebarViewModel = hiltViewModel()
 ) {
-    // Collect Flow state safely with Lifecycle awareness (implicit in collectAsState for simple
-    // cases,
-    // but collectAsStateWithLifecycle is preferred if dependency available - sticking to standard
-    // for compatibility)
-    // standard for compatibility)
-    // val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // Collect Flow state safely with Lifecycle awareness using collectAsStateWithLifecycle
+    // to ensure flows are paused when the app is in the background.
     val pagedMemos = viewModel.pagedMemos.collectAsLazyPagingItems()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedTag by viewModel.selectedTag.collectAsStateWithLifecycle()
     val sidebarUiState by sidebarViewModel.sidebarUiState.collectAsStateWithLifecycle()
-    // val imageMap removed
+
     val dateFormat by viewModel.dateFormat.collectAsStateWithLifecycle()
     val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
     val hapticEnabled by viewModel.hapticFeedbackEnabled.collectAsStateWithLifecycle()
+    
+    // Recording State
+    val isRecording by viewModel.isRecording.collectAsStateWithLifecycle()
+    val recordingDuration by viewModel.recordingDuration.collectAsStateWithLifecycle()
+    val recordingAmplitude by viewModel.recordingAmplitude.collectAsStateWithLifecycle()
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val todoOverrides by viewModel.todoOverrides.collectAsStateWithLifecycle()
@@ -403,6 +406,11 @@ fun MainScreen(
         }
 
     // Input Sheet
+    // Directory Setup Dialog State
+    var directorySetupType by remember { mutableStateOf<DirectorySetupType?>(null) }
+    val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
+    val voiceDirectory by viewModel.voiceDirectory.collectAsStateWithLifecycle()
+
     if (showInputSheet) {
         val allTags = remember(sidebarUiState.tags) { sidebarUiState.tags.map { it.name }.sorted() }
         InputSheet(
@@ -431,16 +439,76 @@ fun MainScreen(
                     }
                 },
                 onImageClick = {
-                    imagePicker.launch(
-                            PickVisualMediaRequest(
-                                    ActivityResultContracts.PickVisualMedia.ImageOnly
-                            )
-                    )
+                    if (imageDirectory == null) {
+                        directorySetupType = DirectorySetupType.Image
+                    } else {
+                        imagePicker.launch(
+                                PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly
+                                )
+                        )
+                    }
                 },
-                availableTags = allTags
+                availableTags = allTags,
+                // Recording Integration
+                isRecording = isRecording,
+                recordingDuration = recordingDuration,
+                recordingAmplitude = recordingAmplitude,
+                onStartRecording = {
+                    if (voiceDirectory == null) {
+                        directorySetupType = DirectorySetupType.Voice
+                    } else {
+                        viewModel.startRecording()
+                    }
+                },
+                onCancelRecording = viewModel::cancelRecording,
+                onStopRecording = {
+                    viewModel.stopRecording { markdown ->
+                         val cur = inputText.text
+                         val newText = if (cur.isEmpty()) markdown else "$cur\n$markdown"
+                         inputText = TextFieldValue(newText, TextRange(newText.length))
+                    }
+                }
         )
     }
+
+    if (directorySetupType != null) {
+        val type = directorySetupType!!
+        val typeLabel = stringResource(type.labelResId)
+        AlertDialog(
+            onDismissRequest = { directorySetupType = null },
+            title = { Text(stringResource(R.string.setup_directory_title, typeLabel)) },
+            text = { Text(stringResource(R.string.setup_directory_message, typeLabel, type.subfolder)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.createDefaultDirectories(
+                            forImage = type == DirectorySetupType.Image,
+                            forVoice = type == DirectorySetupType.Voice
+                        )
+                        directorySetupType = null
+                    }
+                ) {
+                    Text(stringResource(R.string.action_auto_create))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    directorySetupType = null
+                    showInputSheet = false
+                    onNavigateToSettings() 
+                }) {
+                    Text(stringResource(R.string.action_go_to_settings))
+                }
+            }
+        )
     }
+}
+}
+
+enum class DirectorySetupType(val labelResId: Int, val subfolder: String) {
+    Image(R.string.settings_image_storage, "images"),
+    Voice(R.string.settings_voice_storage, "voice")
 }
 
 

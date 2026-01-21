@@ -22,6 +22,10 @@ interface FileDataSource {
     fun getImageRootDisplayNameFlow(): Flow<String?>
     suspend fun setImageRoot(pathOrUri: String)
 
+    fun getVoiceRootFlow(): Flow<String?>
+    fun getVoiceRootDisplayNameFlow(): Flow<String?>
+    suspend fun setVoiceRoot(pathOrUri: String)
+
     suspend fun listFiles(targetFilename: String? = null): List<FileContent>
     suspend fun listTrashFiles(): List<FileContent>
 
@@ -48,6 +52,11 @@ interface FileDataSource {
     suspend fun saveImage(uri: Uri): String
     suspend fun listImageFiles(): List<Pair<String, String>>
     suspend fun deleteImage(filename: String)
+
+    suspend fun createVoiceFile(filename: String): Uri
+    suspend fun deleteVoiceFile(filename: String)
+
+    suspend fun createDirectory(name: String): String
 }
 
 data class FileContent(val filename: String, val content: String, val lastModified: Long)
@@ -117,8 +126,29 @@ constructor(
             dataStore.updateImageUri(pathOrUri)
             dataStore.updateImageDirectory(null)
         } else {
-            dataStore.updateImageDirectory(pathOrUri)
             dataStore.updateImageUri(null)
+        }
+    }
+
+    override fun getVoiceRootFlow(): Flow<String?> =
+        combine(dataStore.voiceUri, dataStore.voiceDirectory) { uri, path -> uri ?: path }
+
+    override fun getVoiceRootDisplayNameFlow(): Flow<String?> =
+        getVoiceRootFlow().map { uriOrPath ->
+            when {
+                uriOrPath == null -> null
+                uriOrPath.startsWith("content://") -> getDisplayName(Uri.parse(uriOrPath))
+                else -> uriOrPath
+            }
+        }
+
+    override suspend fun setVoiceRoot(pathOrUri: String) {
+        if (pathOrUri.startsWith("content://")) {
+            dataStore.updateVoiceUri(pathOrUri)
+            dataStore.updateVoiceDirectory(null)
+        } else {
+            dataStore.updateVoiceDirectory(pathOrUri)
+            dataStore.updateVoiceUri(null)
         }
     }
 
@@ -268,5 +298,40 @@ constructor(
             is DirectStorageBackend -> backend.deleteImage(filename)
             else -> { /* No-op */ }
         }
+    }
+
+    // --- Voice operations ---
+
+    private suspend fun getVoiceBackend(): VoiceStorageBackend? {
+        val voiceUri = dataStore.voiceUri.first()
+        val voiceDir = dataStore.voiceDirectory.first()
+        
+        // Use custom voice directory if set
+        if (voiceUri != null) return SafStorageBackend(context, Uri.parse(voiceUri))
+        if (voiceDir != null) return DirectStorageBackend(java.io.File(voiceDir))
+        
+        // Fallback to root directory (no subfolder)
+        val rootUri = dataStore.rootUri.first()
+        val rootDir = dataStore.rootDirectory.first()
+        
+        return when {
+            rootUri != null -> SafStorageBackend(context, Uri.parse(rootUri))
+            rootDir != null -> DirectStorageBackend(java.io.File(rootDir))
+            else -> null
+        }
+    }
+
+    override suspend fun createVoiceFile(filename: String): Uri {
+        val backend = getVoiceBackend() ?: throw java.io.IOException("No storage configured")
+        return backend.createVoiceFile(filename)
+    }
+
+    override suspend fun deleteVoiceFile(filename: String) {
+        getVoiceBackend()?.deleteVoiceFile(filename)
+    }
+
+    override suspend fun createDirectory(name: String): String {
+        return getBackend()?.createDirectory(name)
+            ?: throw java.io.IOException("No storage configured")
     }
 }

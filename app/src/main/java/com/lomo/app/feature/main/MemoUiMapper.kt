@@ -85,14 +85,21 @@ constructor(
                     "![]($finalUrl)"
                 }
 
-        // 2. Standard
+        // 2. Standard - Skip audio files (voice memos) which should NOT be resolved as images
+        val audioExtensions = setOf(".m4a", ".mp3", ".aac", ".wav")
         newContent =
                 newContent.replace(Regex("!\\[(.*?)\\]\\((.*?)\\)")) { match ->
                     val alt = match.groupValues[1]
                     val path = match.groupValues[2]
-                    val resolved = resolveImageModel(path, isWikiStyle = false)
-                    val finalUrl = (resolved as? File)?.absolutePath ?: resolved.toString()
-                    "![$alt]($finalUrl)"
+                    
+                    // Don't process voice memos - they need their relative paths preserved
+                    if (audioExtensions.any { path.lowercase().endsWith(it) }) {
+                        match.value // Return unchanged
+                    } else {
+                        val resolved = resolveImageModel(path, isWikiStyle = false)
+                        val finalUrl = (resolved as? File)?.absolutePath ?: resolved.toString()
+                        "![$alt]($finalUrl)"
+                    }
                 }
 
         // Parse Markdown
@@ -100,11 +107,22 @@ constructor(
         // thread (it does in ViewModel)
         val parsedNode = MarkdownParser.parse(newContent)
 
+        // Collect images for preloading
+        val imageUrls = mutableListOf<String>()
+        val imageRegex = Regex("!\\[.*?\\]\\((.*?)\\)")
+        imageRegex.findAll(newContent).forEach { match ->
+            val url = match.groupValues[1]
+            if (url.isNotBlank()) {
+                imageUrls.add(url)
+            }
+        }
+
         return MemoUiModel(
                 memo = memo,
                 processedContent = newContent,
                 markdownNode = parsedNode,
-                tags = memo.tags.toImmutableList()
+                tags = memo.tags.toImmutableList(),
+                imageUrls = imageUrls.toImmutableList()
         )
     }
 }

@@ -105,6 +105,8 @@ interface StorageBackend {
      * Check if a file exists in the trash directory.
      */
     suspend fun trashExists(filename: String): Boolean
+
+    suspend fun createDirectory(name: String): String
 }
 
 /**
@@ -131,4 +133,25 @@ interface ImageStorageBackend {
      * Delete an image file.
      */
     suspend fun deleteImage(filename: String)
+}
+
+/**
+ * Strategy interface for voice memo storage operations.
+ */
+interface VoiceStorageBackend {
+    
+    /**
+     * Create a new voice memo file.
+     * @param filename Desired filename (without extension? or with? let's say without, or just filename).
+     * actually, let's say "filename" is the base name, and "extension" is sep.
+     * Or just "filename" including extension.
+     * Let's use filename (with extension) to be explicit.
+     */
+    suspend fun createVoiceFile(filename: String): Uri
+    
+    /**
+     * Delete a voice memo file.
+     * @param filename Filename.
+     */
+    suspend fun deleteVoiceFile(filename: String)
 }

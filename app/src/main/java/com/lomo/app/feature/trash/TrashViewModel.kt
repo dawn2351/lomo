@@ -57,6 +57,8 @@ class TrashViewModel @Inject constructor(private val repository: MemoRepository)
         viewModelScope.launch {
             try {
                 repository.restoreMemo(memo)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Rollback on error
                 _deletedIds.value = _deletedIds.value - memo.id
@@ -72,6 +74,8 @@ class TrashViewModel @Inject constructor(private val repository: MemoRepository)
         viewModelScope.launch {
             try {
                 repository.deletePermanently(memo)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Rollback on error
                 _deletedIds.value = _deletedIds.value - memo.id
