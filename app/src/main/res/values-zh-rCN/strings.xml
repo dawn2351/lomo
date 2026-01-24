@@ -124,4 +124,9 @@
     <string name="action_download">去下载</string>
     <string name="action_cancel">取消</string>
 
+    <!-- About Group -->
+    <string name="settings_group_about">关于</string>
+    <string name="settings_github">项目主页</string>
+    <string name="settings_github_subtitle">去 GitHub 查看源代码</string>
+
 </resources>

@@ -203,6 +203,18 @@ class SafStorageBackend(
             }
         }
 
+    override suspend fun getFileMetadata(filename: String): FileMetadata? =
+        withContext(Dispatchers.IO) {
+            val root = getRoot() ?: return@withContext null
+            val file = root.findFile(filename)
+            if (file != null) {
+                FileMetadata(filename, file.lastModified())
+            } else {
+                null
+            }
+        }
+
+
     // --- File reading ---
 
     override suspend fun readFile(filename: String): String? =

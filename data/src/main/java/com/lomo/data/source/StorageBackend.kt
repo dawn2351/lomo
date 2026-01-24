@@ -42,9 +42,18 @@ interface StorageBackend {
     /**
      * List trash metadata with document IDs.
      */
+    /**
+     * List trash metadata with document IDs.
+     */
     suspend fun listTrashMetadataWithIds(): List<FileMetadataWithId>
     
     // --- File reading ---
+
+    /**
+     * Get metadata for a single file.
+     */
+    suspend fun getFileMetadata(filename: String): FileMetadata?
+    
     
     /**
      * Read file content by filename.

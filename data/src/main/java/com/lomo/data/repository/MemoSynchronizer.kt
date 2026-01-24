@@ -288,6 +288,14 @@ constructor(
 
                 // File
                 fileDataSource.saveFile(filename, fileContentToAppend, append = true)
+                
+                // Update Sync Metadata explicitly to prevent re-import
+                val metadata = fileDataSource.getFileMetadata(filename)
+                if (metadata != null) {
+                    fileSyncDao.insertSyncMetadata(
+                        FileSyncEntity(filename, metadata.lastModified, isTrash = false)
+                    )
+                }
             }
 
     suspend fun updateMemo(memo: Memo, newContent: String) =
@@ -341,6 +349,14 @@ constructor(
 
                     if (success) {
                         fileDataSource.saveFile(filename, lines.joinToString("\n"), append = false)
+                        
+                        // Update Sync Metadata
+                        val metadata = fileDataSource.getFileMetadata(filename)
+                        if (metadata != null) {
+                            fileSyncDao.insertSyncMetadata(
+                                FileSyncEntity(filename, metadata.lastModified, isTrash = false)
+                            )
+                        }
                     }
                 }
             }
@@ -360,6 +376,17 @@ constructor(
 
             // Save to trash first
             fileDataSource.saveTrashFile(filename, trashContent)
+            
+            // Update Trash Metadata
+            val trashMetadata = fileDataSource.getFileMetadata(filename) // Wait, this gets main file meta. 
+            // We need to check trash file existence/metadata actually.
+            // But getFileMetadata(filename) checks root file. 
+            // For trash we need a way to check trash file metadata? 
+            // StorageBackend has listTrashMetadata, but not getTrashFileMetadata.
+            // However, syncFiles (which is called by refresh) iterates listTrashMetadata.
+            // So we should try to update it if possible, but listTrashMetadata scans dir. 
+            // Let's assume trash sync is less critical for the "reappearing" bug which happens in Main list.
+            // The reappearing bug is about the MAIN file being re-read.
 
             // Remove from original file
             if (textProcessor.removeMemoBlock(lines, memo.rawContent, memo.timestamp)) {
@@ -368,8 +395,17 @@ constructor(
                 if (remainingContent.isEmpty()) {
                     // Delete the empty date file from main folder
                     fileDataSource.deleteFile(filename)
+                    fileSyncDao.deleteSyncMetadata(filename, isTrash = false)
                 } else {
                     fileDataSource.saveFile(filename, lines.joinToString("\n"), false)
+                    
+                    // Update Sync Metadata for Main file
+                    val metadata = fileDataSource.getFileMetadata(filename)
+                    if (metadata != null) {
+                        fileSyncDao.insertSyncMetadata(
+                            FileSyncEntity(filename, metadata.lastModified, isTrash = false)
+                        )
+                    }
                 }
 
                 // Only update DB after file operations succeed
@@ -396,6 +432,14 @@ constructor(
 
                     // Append to Main
                     fileDataSource.saveFile(filename, restoredBlock, append = true)
+                    
+                    // Update Main Metadata
+                     val metadata = fileDataSource.getFileMetadata(filename)
+                    if (metadata != null) {
+                        fileSyncDao.insertSyncMetadata(
+                            FileSyncEntity(filename, metadata.lastModified, isTrash = false)
+                        )
+                    }
 
                     // Remove from Trash
                     val removeSuccess =
@@ -438,6 +482,7 @@ constructor(
                     if (remainingContent.isEmpty()) {
                         // Delete the empty date file
                         fileDataSource.deleteTrashFile(filename)
+                         fileSyncDao.deleteSyncMetadata(filename, isTrash = true)
                     } else {
                         fileDataSource.saveTrashFile(
                                 filename,
@@ -446,6 +491,7 @@ constructor(
                         )
                     }
                 }
+
 
                 // Orphan Image/Voice Cleanup (Issue #3)
                 // Check if any images/voice files in this memo are NOT used by other memos

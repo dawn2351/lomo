@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Info
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.compose.animation.*
@@ -60,7 +61,9 @@ fun SettingsScreen(onBackClick: () -> Unit, viewModel: SettingsViewModel = hiltV
         val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
         val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
         val checkUpdates by viewModel.checkUpdatesOnStartup.collectAsStateWithLifecycle()
+
         val context = LocalContext.current
+        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
         var showDateDialog by remember { mutableStateOf(false) }
         var showTimeDialog by remember { mutableStateOf(false) }
@@ -274,6 +277,16 @@ fun SettingsScreen(onBackClick: () -> Unit, viewModel: SettingsViewModel = hiltV
                             icon = Icons.Outlined.Schedule, 
                             checked = checkUpdates,
                             onCheckedChange = { viewModel.updateCheckUpdatesOnStartup(it) }
+                        )
+
+                    }
+
+                    SettingsGroup(title = androidx.compose.ui.res.stringResource(com.lomo.app.R.string.settings_group_about)) {
+                        PreferenceItem(
+                            title = androidx.compose.ui.res.stringResource(com.lomo.app.R.string.settings_github),
+                            subtitle = androidx.compose.ui.res.stringResource(com.lomo.app.R.string.settings_github_subtitle),
+                            icon = Icons.Outlined.Info,
+                            onClick = { uriHandler.openUri("https://github.com/unsigned57/lomo") }
                         )
                     }
                 }

@@ -160,7 +160,7 @@ fun MainScreen(
                 scope.launch {
                     delay(550) // DurationLong2 + Buffer
                     viewModel.deleteMemo(memo)
-                    deletingIds.remove(memo.id)
+
                 }
             }
         },

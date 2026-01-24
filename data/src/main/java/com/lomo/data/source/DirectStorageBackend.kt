@@ -74,6 +74,17 @@ class DirectStorageBackend(
             listTrashMetadata().map { FileMetadataWithId(it.filename, it.lastModified, it.filename) }
         }
 
+    override suspend fun getFileMetadata(filename: String): FileMetadata? =
+        withContext(Dispatchers.IO) {
+            val file = File(rootDir, filename)
+            if (file.exists()) {
+                FileMetadata(filename, file.lastModified())
+            } else {
+                null
+            }
+        }
+
+
     // --- File reading ---
 
     override suspend fun readFile(filename: String): String? =

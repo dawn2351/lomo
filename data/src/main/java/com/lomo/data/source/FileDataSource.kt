@@ -46,8 +46,10 @@ interface FileDataSource {
     suspend fun deleteFile(filename: String)
     suspend fun deleteTrashFile(filename: String)
 
+    suspend fun getFileMetadata(filename: String): FileMetadata?
     suspend fun exists(filename: String): Boolean
     suspend fun trashExists(filename: String): Boolean
+
 
     suspend fun saveImage(uri: Uri): String
     suspend fun listImageFiles(): List<Pair<String, String>>
@@ -231,6 +233,10 @@ constructor(
     override suspend fun deleteTrashFile(filename: String) {
         getBackend()?.deleteTrashFile(filename)
     }
+
+    override suspend fun getFileMetadata(filename: String): FileMetadata? =
+        getBackend()?.getFileMetadata(filename)
+
 
     override suspend fun exists(filename: String): Boolean =
         getBackend()?.exists(filename) ?: false
