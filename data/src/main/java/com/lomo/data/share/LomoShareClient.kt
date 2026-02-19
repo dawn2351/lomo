@@ -7,8 +7,10 @@ import com.lomo.domain.model.ShareAttachmentInfo
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -18,8 +20,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import io.ktor.client.plugins.timeout
-import io.ktor.client.request.get
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
@@ -36,21 +36,23 @@ class LomoShareClient(
         private const val MAX_ATTACHMENT_SIZE_BYTES = 100L * 1024L * 1024L
     }
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
-    private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(json)
+    private val client =
+        HttpClient(OkHttp) {
+            install(ContentNegotiation) {
+                json(json)
+            }
+            install(io.ktor.client.plugins.HttpTimeout) {
+                requestTimeoutMillis = 70_000L // > 60s server timeout
+                connectTimeoutMillis = 15_000L
+                socketTimeoutMillis = 70_000L
+            }
         }
-        install(io.ktor.client.plugins.HttpTimeout) {
-            requestTimeoutMillis = 70_000L // > 60s server timeout
-            connectTimeoutMillis = 15_000L
-            socketTimeoutMillis = 70_000L
-        }
-    }
 
     /**
      * Phase 1: Send prepare request and wait for receiver's decision.
@@ -95,18 +97,20 @@ class LomoShareClient(
                     payload = signaturePayload,
                 )
 
-            val request = LomoShareServer.PrepareRequest(
-                senderName = senderName,
-                encryptedContent = encryptedContent.ciphertextBase64,
-                contentNonce = encryptedContent.nonceBase64,
-                timestamp = timestamp,
-                attachments = attachments.map {
-                    LomoShareServer.AttachmentInfo(name = it.name, type = it.type, size = it.size)
-                },
-                authTimestampMs = authTimestampMs,
-                authNonce = authNonce,
-                authSignature = authSignature,
-            )
+            val request =
+                LomoShareServer.PrepareRequest(
+                    senderName = senderName,
+                    encryptedContent = encryptedContent.ciphertextBase64,
+                    contentNonce = encryptedContent.nonceBase64,
+                    timestamp = timestamp,
+                    attachments =
+                        attachments.map {
+                            LomoShareServer.AttachmentInfo(name = it.name, type = it.type, size = it.size)
+                        },
+                    authTimestampMs = authTimestampMs,
+                    authNonce = authNonce,
+                    authSignature = authSignature,
+                )
 
             // Step 0: Check connectivity with a quick ping (3s timeout)
             // If device is unreachable, fail fast instead of waiting 70s
@@ -119,10 +123,11 @@ class LomoShareClient(
                 return Result.failure(Exception("Device unreachable"))
             }
 
-            val response = client.post("http://${device.host}:${device.port}/share/prepare") {
-                contentType(ContentType.Application.Json)
-                setBody(json.encodeToString(LomoShareServer.PrepareRequest.serializer(), request))
-            }
+            val response =
+                client.post("http://${device.host}:${device.port}/share/prepare") {
+                    contentType(ContentType.Application.Json)
+                    setBody(json.encodeToString(LomoShareServer.PrepareRequest.serializer(), request))
+                }
 
             if (response.status != HttpStatusCode.OK) {
                 val errorBody = response.bodyAsText()
@@ -164,6 +169,7 @@ class LomoShareClient(
 
             val authTimestampMs = System.currentTimeMillis()
             val authNonce = ShareAuthUtils.generateNonce()
+
             data class EncryptedAttachment(
                 val name: String,
                 val encryptedBytes: ByteArray,
@@ -179,8 +185,9 @@ class LomoShareClient(
                 )
             val encryptedAttachments = mutableListOf<EncryptedAttachment>()
             for ((filename, uri) in attachmentUris) {
-                val bytes = readUriBytes(uri, MAX_ATTACHMENT_SIZE_BYTES)
-                    ?: throw IllegalStateException("Failed to read attachment: $filename")
+                val bytes =
+                    readUriBytes(uri, MAX_ATTACHMENT_SIZE_BYTES)
+                        ?: throw IllegalStateException("Failed to read attachment: $filename")
                 val encrypted =
                     ShareCryptoUtils.encryptBytes(
                         keyHex = keyHex,
@@ -213,42 +220,45 @@ class LomoShareClient(
                     payload = signaturePayload,
                 )
 
-            val metadata = LomoShareServer.TransferMetadata(
-                sessionToken = sessionToken,
-                encryptedContent = encryptedContent.ciphertextBase64,
-                contentNonce = encryptedContent.nonceBase64,
-                timestamp = timestamp,
-                attachmentNames = attachmentNames,
-                attachmentNonces = encryptedAttachments.associate { it.name to it.nonceBase64 },
-                authTimestampMs = authTimestampMs,
-                authNonce = authNonce,
-                authSignature = authSignature,
-            )
+            val metadata =
+                LomoShareServer.TransferMetadata(
+                    sessionToken = sessionToken,
+                    encryptedContent = encryptedContent.ciphertextBase64,
+                    contentNonce = encryptedContent.nonceBase64,
+                    timestamp = timestamp,
+                    attachmentNames = attachmentNames,
+                    attachmentNonces = encryptedAttachments.associate { it.name to it.nonceBase64 },
+                    authTimestampMs = authTimestampMs,
+                    authNonce = authNonce,
+                    authSignature = authSignature,
+                )
 
-            val response = client.submitFormWithBinaryData(
-                url = "http://${device.host}:${device.port}/share/transfer",
-                formData = formData {
-                    // Part 1: JSON metadata
-                    append(
-                        "metadata",
-                        json.encodeToString(LomoShareServer.TransferMetadata.serializer(), metadata),
-                    )
+            val response =
+                client.submitFormWithBinaryData(
+                    url = "http://${device.host}:${device.port}/share/transfer",
+                    formData =
+                        formData {
+                            // Part 1: JSON metadata
+                            append(
+                                "metadata",
+                                json.encodeToString(LomoShareServer.TransferMetadata.serializer(), metadata),
+                            )
 
-                    // Part 2+: Attachment files
-                    var index = 0
-                    for (attachment in encryptedAttachments) {
-                        append(
-                            "attachment_$index",
-                            attachment.encryptedBytes,
-                            Headers.build {
-                                append(HttpHeaders.ContentType, attachment.contentType)
-                                append(HttpHeaders.ContentDisposition, "filename=\"${attachment.name}\"")
-                            },
-                        )
-                        index++
-                    }
-                },
-            )
+                            // Part 2+: Attachment files
+                            var index = 0
+                            for (attachment in encryptedAttachments) {
+                                append(
+                                    "attachment_$index",
+                                    attachment.encryptedBytes,
+                                    Headers.build {
+                                        append(HttpHeaders.ContentType, attachment.contentType)
+                                        append(HttpHeaders.ContentDisposition, "filename=\"${attachment.name}\"")
+                                    },
+                                )
+                                index++
+                            }
+                        },
+                )
 
             if (response.status != HttpStatusCode.OK) {
                 Timber.tag(TAG).w("Transfer failed with status=${response.status.value}: ${response.bodyAsText()}")
@@ -268,8 +278,11 @@ class LomoShareClient(
         client.close()
     }
 
-    private fun readUriBytes(uri: Uri, maxBytes: Long): ByteArray? {
-        return try {
+    private fun readUriBytes(
+        uri: Uri,
+        maxBytes: Long,
+    ): ByteArray? =
+        try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val output = ByteArrayOutputStream()
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -289,10 +302,9 @@ class LomoShareClient(
             Timber.tag(TAG).e(e, "Failed to read URI: $uri")
             null
         }
-    }
 
-    private fun guessContentType(filename: String): String {
-        return when {
+    private fun guessContentType(filename: String): String =
+        when {
             filename.endsWith(".jpg", true) || filename.endsWith(".jpeg", true) -> "image/jpeg"
             filename.endsWith(".png", true) -> "image/png"
             filename.endsWith(".webp", true) -> "image/webp"
@@ -303,5 +315,4 @@ class LomoShareClient(
             filename.endsWith(".wav", true) -> "audio/wav"
             else -> "application/octet-stream"
         }
-    }
 }

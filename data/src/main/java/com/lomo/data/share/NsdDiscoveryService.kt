@@ -36,32 +36,44 @@ class NsdDiscoveryService(
 
     // --- Service Registration ---
 
-    fun registerService(port: Int, deviceName: String, uuid: String) {
-        val serviceInfo = NsdServiceInfo().apply {
-            serviceName = "$SERVICE_NAME_PREFIX$deviceName"
-            serviceType = SERVICE_TYPE
-            setPort(port)
-            setAttribute("uuid", uuid)
-        }
-
-        registrationListener = object : NsdManager.RegistrationListener {
-            override fun onServiceRegistered(info: NsdServiceInfo) {
-                registeredServiceName = info.serviceName
-                Timber.tag(TAG).d("Service registered: ${info.serviceName}")
+    fun registerService(
+        port: Int,
+        deviceName: String,
+        uuid: String,
+    ) {
+        val serviceInfo =
+            NsdServiceInfo().apply {
+                serviceName = "$SERVICE_NAME_PREFIX$deviceName"
+                serviceType = SERVICE_TYPE
+                setPort(port)
+                setAttribute("uuid", uuid)
             }
 
-            override fun onRegistrationFailed(info: NsdServiceInfo, errorCode: Int) {
-                Timber.tag(TAG).e("Registration failed: $errorCode")
-            }
+        registrationListener =
+            object : NsdManager.RegistrationListener {
+                override fun onServiceRegistered(info: NsdServiceInfo) {
+                    registeredServiceName = info.serviceName
+                    Timber.tag(TAG).d("Service registered: ${info.serviceName}")
+                }
 
-            override fun onServiceUnregistered(info: NsdServiceInfo) {
-                Timber.tag(TAG).d("Service unregistered: ${info.serviceName}")
-            }
+                override fun onRegistrationFailed(
+                    info: NsdServiceInfo,
+                    errorCode: Int,
+                ) {
+                    Timber.tag(TAG).e("Registration failed: $errorCode")
+                }
 
-            override fun onUnregistrationFailed(info: NsdServiceInfo, errorCode: Int) {
-                Timber.tag(TAG).e("Unregistration failed: $errorCode")
+                override fun onServiceUnregistered(info: NsdServiceInfo) {
+                    Timber.tag(TAG).d("Service unregistered: ${info.serviceName}")
+                }
+
+                override fun onUnregistrationFailed(
+                    info: NsdServiceInfo,
+                    errorCode: Int,
+                ) {
+                    Timber.tag(TAG).e("Unregistration failed: $errorCode")
+                }
             }
-        }
 
         try {
             nsdManager.registerService(
@@ -92,39 +104,46 @@ class NsdDiscoveryService(
         this.localUuid = uuid
         _discoveredDevices.value = emptyList()
 
-        discoveryListener = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(serviceType: String) {
-                Timber.tag(TAG).d("Discovery started for $serviceType")
-            }
+        discoveryListener =
+            object : NsdManager.DiscoveryListener {
+                override fun onDiscoveryStarted(serviceType: String) {
+                    Timber.tag(TAG).d("Discovery started for $serviceType")
+                }
 
-            override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                Timber.tag(TAG).d("Service found: ${serviceInfo.serviceName}")
-                // Don't resolve our own service
-                if (serviceInfo.serviceName == registeredServiceName) return
+                override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+                    Timber.tag(TAG).d("Service found: ${serviceInfo.serviceName}")
+                    // Don't resolve our own service
+                    if (serviceInfo.serviceName == registeredServiceName) return
 
-                resolveService(serviceInfo)
-            }
+                    resolveService(serviceInfo)
+                }
 
-            override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-                Timber.tag(TAG).d("Service lost: ${serviceInfo.serviceName}")
-                val lostName = serviceInfo.serviceName.removePrefix(SERVICE_NAME_PREFIX)
-                _discoveredDevices.update { list ->
-                    list.filter { it.name != lostName }
+                override fun onServiceLost(serviceInfo: NsdServiceInfo) {
+                    Timber.tag(TAG).d("Service lost: ${serviceInfo.serviceName}")
+                    val lostName = serviceInfo.serviceName.removePrefix(SERVICE_NAME_PREFIX)
+                    _discoveredDevices.update { list ->
+                        list.filter { it.name != lostName }
+                    }
+                }
+
+                override fun onDiscoveryStopped(serviceType: String) {
+                    Timber.tag(TAG).d("Discovery stopped for $serviceType")
+                }
+
+                override fun onStartDiscoveryFailed(
+                    serviceType: String,
+                    errorCode: Int,
+                ) {
+                    Timber.tag(TAG).e("Start discovery failed: $errorCode")
+                }
+
+                override fun onStopDiscoveryFailed(
+                    serviceType: String,
+                    errorCode: Int,
+                ) {
+                    Timber.tag(TAG).e("Stop discovery failed: $errorCode")
                 }
             }
-
-            override fun onDiscoveryStopped(serviceType: String) {
-                Timber.tag(TAG).d("Discovery stopped for $serviceType")
-            }
-
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Timber.tag(TAG).e("Start discovery failed: $errorCode")
-            }
-
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Timber.tag(TAG).e("Stop discovery failed: $errorCode")
-            }
-        }
 
         try {
             nsdManager.discoverServices(
@@ -151,7 +170,10 @@ class NsdDiscoveryService(
         nsdManager.resolveService(
             serviceInfo,
             object : NsdManager.ResolveListener {
-                override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {
+                override fun onResolveFailed(
+                    info: NsdServiceInfo,
+                    errorCode: Int,
+                ) {
                     Timber.tag(TAG).e("Resolve failed for ${info.serviceName}: $errorCode")
                 }
 
@@ -165,7 +187,7 @@ class NsdDiscoveryService(
                     val host = hostAddress.hostAddress
                     val port = info.port
                     val name = info.serviceName.removePrefix(SERVICE_NAME_PREFIX)
-                    
+
                     val uuidBytes = info.attributes["uuid"]
                     val remoteUuid = uuidBytes?.let { String(it, Charsets.UTF_8) }
 
@@ -176,11 +198,12 @@ class NsdDiscoveryService(
 
                     Timber.tag(TAG).d("Resolved: $name at $host:$port (uuid=$remoteUuid)")
 
-                    val device = DiscoveredDevice(
-                        name = name,
-                        host = host,
-                        port = port,
-                    )
+                    val device =
+                        DiscoveredDevice(
+                            name = name,
+                            host = host,
+                            port = port,
+                        )
 
                     _discoveredDevices.update { list ->
                         // Deduplicate by host to prevent multiple entries for the same device (e.g. after rename)

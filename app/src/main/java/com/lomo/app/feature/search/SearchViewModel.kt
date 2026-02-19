@@ -85,8 +85,9 @@ class SearchViewModel
                                         rootPath = bundle.root,
                                         imagePath = bundle.imageRoot,
                                         imageMap = bundle.imageMap,
-                                        isDeleting = bundle.mutations[memo.id]?.isHidden == false &&
-                                            bundle.mutations[memo.id] != null,
+                                        isDeleting =
+                                            bundle.mutations[memo.id]?.isHidden == false &&
+                                                bundle.mutations[memo.id] != null,
                                     )
                                 }.filter { memo ->
                                     val mutation = bundle.mutations[memo.memo.id]

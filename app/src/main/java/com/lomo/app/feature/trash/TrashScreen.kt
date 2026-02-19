@@ -162,9 +162,10 @@ fun TrashScreen(
                                 val isVisible = mutation?.isHidden != true
                                 val isProcessing = mutation != null
                                 // Capture animation start time locally when processing begins
-                                val mutationTimestamp = remember(isProcessing, memo.id) {
-                                    if (isProcessing) System.currentTimeMillis() else null
-                                }
+                                val mutationTimestamp =
+                                    remember(isProcessing, memo.id) {
+                                        if (isProcessing) System.currentTimeMillis() else null
+                                    }
 
                                 if (!isVisible) {
                                     // Once marked as hidden optimistically, we effectively "remove" it from UI

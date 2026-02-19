@@ -544,5 +544,4 @@ fun SettingsScreen(
             },
         )
     }
-
 }

@@ -8,12 +8,12 @@ import androidx.documentfile.provider.DocumentFile
 import com.lomo.data.local.datastore.LomoDataStore
 import com.lomo.data.repository.MemoSynchronizer
 import com.lomo.data.source.FileDataSource
-import com.lomo.domain.repository.MediaRepository
 import com.lomo.domain.model.DiscoveredDevice
 import com.lomo.domain.model.IncomingShareState
 import com.lomo.domain.model.ShareAttachmentInfo
 import com.lomo.domain.model.SharePayload
 import com.lomo.domain.model.ShareTransferState
+import com.lomo.domain.repository.MediaRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,10 +72,15 @@ class ShareServiceManager
         val lanShareDeviceName = dataStore.lanShareDeviceName.map { sanitizeDeviceName(it) ?: getFallbackDeviceName() }
 
         private var serverPort: Int = 0
-        private val localUuid = java.util.UUID.randomUUID().toString()
+        private val localUuid =
+            java.util.UUID
+                .randomUUID()
+                .toString()
         private val serviceStateLock = Any()
+
         @Volatile
         private var servicesStarted = false
+
         @Volatile
         private var discoveryStarted = false
 
@@ -202,90 +207,93 @@ class ShareServiceManager
             content: String,
             timestamp: Long,
             attachmentUris: Map<String, Uri>,
-        ): Result<Unit> = withContext(Dispatchers.IO) {
-            try {
-                if (requiresPairingBeforeSend()) {
-                    val message = "Please set an end-to-end encryption password first"
-                    _transferState.value = ShareTransferState.Error(message)
-                    return@withContext Result.failure(IllegalStateException(message))
-                }
-
-                _transferState.value = ShareTransferState.Sending
-
-                val resolvedAttachmentUris = resolveAttachmentUris(attachmentUris)
-                if (resolvedAttachmentUris.size != attachmentUris.size) {
-                    val missingCount = attachmentUris.size - resolvedAttachmentUris.size
-                    val message = "Failed to resolve $missingCount attachment(s)"
-                    _transferState.value = ShareTransferState.Error(message)
-                    return@withContext Result.failure(Exception(message))
-                }
-
-                // Build attachment info list
-                val attachmentInfos = mutableListOf<ShareAttachmentInfo>()
-                for ((name, uri) in resolvedAttachmentUris) {
-                    val resolvedSize = resolveAttachmentSize(uri)
-                    if (resolvedSize > MAX_ATTACHMENT_SIZE_BYTES) {
-                        val message = "Attachment too large"
+        ): Result<Unit> =
+            withContext(Dispatchers.IO) {
+                try {
+                    if (requiresPairingBeforeSend()) {
+                        val message = "Please set an end-to-end encryption password first"
                         _transferState.value = ShareTransferState.Error(message)
-                        return@withContext Result.failure(IllegalArgumentException(message))
+                        return@withContext Result.failure(IllegalStateException(message))
                     }
-                    val size = sanitizeAttachmentSizeForPrepare(resolvedSize)
-                    val type = detectAttachmentType(name, uri)
-                    attachmentInfos += ShareAttachmentInfo(name = name, type = type, size = size)
-                }
-                if (attachmentInfos.any { it.type == "unknown" }) {
-                    val message = "Unsupported attachment type in memo"
-                    _transferState.value = ShareTransferState.Error(message)
-                    return@withContext Result.failure(Exception(message))
-                }
 
-                // Phase 1: Prepare
-                _transferState.value = ShareTransferState.WaitingApproval(device.name)
-                val result = client.prepare(
-                    device = device,
-                    content = content,
-                    timestamp = timestamp,
-                    senderName = resolveDeviceName(),
-                    attachments = attachmentInfos,
-                )
+                    _transferState.value = ShareTransferState.Sending
 
-                if (result.isFailure) {
-                    val error = result.exceptionOrNull()
-                    val message = error?.message ?: "Unknown error"
-                    Timber.tag(TAG).e(error, "Prepare failed: $message")
-                    _transferState.value = ShareTransferState.Error("Connection failed: $message")
-                    return@withContext Result.failure(error ?: Exception("Connection failed"))
+                    val resolvedAttachmentUris = resolveAttachmentUris(attachmentUris)
+                    if (resolvedAttachmentUris.size != attachmentUris.size) {
+                        val missingCount = attachmentUris.size - resolvedAttachmentUris.size
+                        val message = "Failed to resolve $missingCount attachment(s)"
+                        _transferState.value = ShareTransferState.Error(message)
+                        return@withContext Result.failure(Exception(message))
+                    }
+
+                    // Build attachment info list
+                    val attachmentInfos = mutableListOf<ShareAttachmentInfo>()
+                    for ((name, uri) in resolvedAttachmentUris) {
+                        val resolvedSize = resolveAttachmentSize(uri)
+                        if (resolvedSize > MAX_ATTACHMENT_SIZE_BYTES) {
+                            val message = "Attachment too large"
+                            _transferState.value = ShareTransferState.Error(message)
+                            return@withContext Result.failure(IllegalArgumentException(message))
+                        }
+                        val size = sanitizeAttachmentSizeForPrepare(resolvedSize)
+                        val type = detectAttachmentType(name, uri)
+                        attachmentInfos += ShareAttachmentInfo(name = name, type = type, size = size)
+                    }
+                    if (attachmentInfos.any { it.type == "unknown" }) {
+                        val message = "Unsupported attachment type in memo"
+                        _transferState.value = ShareTransferState.Error(message)
+                        return@withContext Result.failure(Exception(message))
+                    }
+
+                    // Phase 1: Prepare
+                    _transferState.value = ShareTransferState.WaitingApproval(device.name)
+                    val result =
+                        client.prepare(
+                            device = device,
+                            content = content,
+                            timestamp = timestamp,
+                            senderName = resolveDeviceName(),
+                            attachments = attachmentInfos,
+                        )
+
+                    if (result.isFailure) {
+                        val error = result.exceptionOrNull()
+                        val message = error?.message ?: "Unknown error"
+                        Timber.tag(TAG).e(error, "Prepare failed: $message")
+                        _transferState.value = ShareTransferState.Error("Connection failed: $message")
+                        return@withContext Result.failure(error ?: Exception("Connection failed"))
+                    }
+
+                    val sessionToken = result.getOrNull()
+                    if (sessionToken.isNullOrBlank()) {
+                        _transferState.value = ShareTransferState.Error("Transfer rejected by ${device.name}")
+                        return@withContext Result.failure(Exception("Transfer rejected"))
+                    }
+
+                    // Phase 2: Transfer
+                    _transferState.value = ShareTransferState.Transferring(0f)
+                    val success =
+                        client.transfer(
+                            device = device,
+                            content = content,
+                            timestamp = timestamp,
+                            sessionToken = sessionToken,
+                            attachmentUris = resolvedAttachmentUris,
+                        )
+
+                    if (success) {
+                        _transferState.value = ShareTransferState.Success(device.name)
+                        Result.success(Unit)
+                    } else {
+                        _transferState.value = ShareTransferState.Error("Transfer failed")
+                        Result.failure(Exception("Transfer failed"))
+                    }
+                } catch (e: Exception) {
+                    Timber.tag(TAG).e(e, "Send memo failed")
+                    _transferState.value = ShareTransferState.Error(e.message ?: "Unknown error")
+                    Result.failure(e)
                 }
-
-                val sessionToken = result.getOrNull()
-                if (sessionToken.isNullOrBlank()) {
-                    _transferState.value = ShareTransferState.Error("Transfer rejected by ${device.name}")
-                    return@withContext Result.failure(Exception("Transfer rejected"))
-                }
-
-                // Phase 2: Transfer
-                _transferState.value = ShareTransferState.Transferring(0f)
-                val success = client.transfer(
-                    device = device,
-                    content = content,
-                    timestamp = timestamp,
-                    sessionToken = sessionToken,
-                    attachmentUris = resolvedAttachmentUris,
-                )
-
-                if (success) {
-                    _transferState.value = ShareTransferState.Success(device.name)
-                    Result.success(Unit)
-                } else {
-                    _transferState.value = ShareTransferState.Error("Transfer failed")
-                    Result.failure(Exception("Transfer failed"))
-                }
-            } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Send memo failed")
-                _transferState.value = ShareTransferState.Error(e.message ?: "Unknown error")
-                Result.failure(e)
             }
-        }
 
         fun resetTransferState() {
             _transferState.value = ShareTransferState.Idle
@@ -339,7 +347,11 @@ class ShareServiceManager
          * Save a received attachment to the appropriate directory.
          * Returns the filename that was saved (for content reference mapping).
          */
-        private suspend fun saveAttachmentFile(name: String, type: String, bytes: ByteArray): String? {
+        private suspend fun saveAttachmentFile(
+            name: String,
+            type: String,
+            bytes: ByteArray,
+        ): String? {
             val safeName = sanitizeAttachmentFilename(name)
             var tempFile: File? = null
             return try {
@@ -353,6 +365,7 @@ class ShareServiceManager
                         // Keep standard markdown reference format: ![image](img_xxx.ext)
                         dataSource.saveImage(tempUri)
                     }
+
                     "audio" -> {
                         // For audio, create the file via voice storage
                         val voiceUri = dataSource.createVoiceFile(safeName)
@@ -366,6 +379,7 @@ class ShareServiceManager
                         // Keep standard markdown reference format: ![voice](voice_xxx.ext)
                         safeName
                     }
+
                     else -> {
                         null
                     }
@@ -449,7 +463,10 @@ class ShareServiceManager
             return null
         }
 
-        private fun resolveFromDirectory(directory: String?, fileName: String): Uri? {
+        private fun resolveFromDirectory(
+            directory: String?,
+            fileName: String,
+        ): Uri? {
             if (directory.isNullOrBlank()) return null
             val file = File(directory, fileName)
             return if (file.exists() && file.isFile) {
@@ -459,7 +476,10 @@ class ShareServiceManager
             }
         }
 
-        private fun resolveFromTreeUri(treeUriString: String?, fileName: String): Uri? {
+        private fun resolveFromTreeUri(
+            treeUriString: String?,
+            fileName: String,
+        ): Uri? {
             if (treeUriString.isNullOrBlank()) return null
             return try {
                 val tree = DocumentFile.fromTreeUri(context, Uri.parse(treeUriString)) ?: return null
@@ -504,9 +524,7 @@ class ShareServiceManager
             }
         }
 
-        private fun sanitizeAttachmentSizeForPrepare(size: Long): Long {
-            return size.coerceAtLeast(0L)
-        }
+        private fun sanitizeAttachmentSizeForPrepare(size: Long): Long = size.coerceAtLeast(0L)
 
         private fun detectAttachmentType(
             name: String,
@@ -514,10 +532,10 @@ class ShareServiceManager
         ): String {
             val byName =
                 when {
-                name.matches(Regex(".*\\.(jpg|jpeg|png|webp|gif)$", RegexOption.IGNORE_CASE)) -> "image"
-                name.matches(Regex(".*\\.(m4a|mp3|ogg|wav)$", RegexOption.IGNORE_CASE)) -> "audio"
-                else -> "unknown"
-            }
+                    name.matches(Regex(".*\\.(jpg|jpeg|png|webp|gif)$", RegexOption.IGNORE_CASE)) -> "image"
+                    name.matches(Regex(".*\\.(m4a|mp3|ogg|wav)$", RegexOption.IGNORE_CASE)) -> "audio"
+                    else -> "unknown"
+                }
             if (byName != "unknown") return byName
 
             val mime =
@@ -550,12 +568,11 @@ class ShareServiceManager
             }
         }
 
-        private fun createShareClient(): LomoShareClient {
-            return LomoShareClient(
+        private fun createShareClient(): LomoShareClient =
+            LomoShareClient(
                 context = context,
                 getPairingKeyHex = { getEffectivePairingKeyHex() },
             )
-        }
 
         private suspend fun getEffectivePairingKeyHex(): String? {
             val e2eEnabled = dataStore.lanShareE2eEnabled.first()

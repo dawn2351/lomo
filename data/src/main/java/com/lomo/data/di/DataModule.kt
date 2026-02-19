@@ -38,10 +38,11 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideMemoTokenDao(database: MemoDatabase): com.lomo.data.local.dao.MemoTokenDao = database.run {
-        // Room 直接暴露 DAO 方法（需在 MemoDatabase 中声明抽象 getter）
-        memoTokenDao()
-    }
+    fun provideMemoTokenDao(database: MemoDatabase): com.lomo.data.local.dao.MemoTokenDao =
+        database.run {
+            // Room 直接暴露 DAO 方法（需在 MemoDatabase 中声明抽象 getter）
+            memoTokenDao()
+        }
 
     @Provides
     @Singleton

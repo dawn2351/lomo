@@ -50,7 +50,10 @@ interface MemoTokenDao {
         ORDER BY Lomo.timestamp DESC, Lomo.id DESC
         """,
     )
-    fun search2(t1: String, t2: String): PagingSource<Int, MemoEntity>
+    fun search2(
+        t1: String,
+        t2: String,
+    ): PagingSource<Int, MemoEntity>
 
     @Query(
         """
@@ -65,7 +68,11 @@ interface MemoTokenDao {
         ORDER BY Lomo.timestamp DESC, Lomo.id DESC
         """,
     )
-    fun search3(t1: String, t2: String, t3: String): PagingSource<Int, MemoEntity>
+    fun search3(
+        t1: String,
+        t2: String,
+        t3: String,
+    ): PagingSource<Int, MemoEntity>
 
     @Query(
         """
@@ -82,7 +89,12 @@ interface MemoTokenDao {
         ORDER BY Lomo.timestamp DESC, Lomo.id DESC
         """,
     )
-    fun search4(t1: String, t2: String, t3: String, t4: String): PagingSource<Int, MemoEntity>
+    fun search4(
+        t1: String,
+        t2: String,
+        t3: String,
+        t4: String,
+    ): PagingSource<Int, MemoEntity>
 
     @Query(
         """
@@ -101,6 +113,11 @@ interface MemoTokenDao {
         ORDER BY Lomo.timestamp DESC, Lomo.id DESC
         """,
     )
-    fun search5(t1: String, t2: String, t3: String, t4: String, t5: String): PagingSource<Int, MemoEntity>
+    fun search5(
+        t1: String,
+        t2: String,
+        t3: String,
+        t4: String,
+        t5: String,
+    ): PagingSource<Int, MemoEntity>
 }
-

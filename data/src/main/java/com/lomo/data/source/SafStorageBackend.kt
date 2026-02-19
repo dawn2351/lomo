@@ -307,7 +307,10 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun readHead(filename: String, maxChars: Int): String? =
+    override suspend fun readHead(
+        filename: String,
+        maxChars: Int,
+    ): String? =
         withContext(Dispatchers.IO) {
             val root = getRoot() ?: return@withContext null
             val file = root.findFile(filename) ?: return@withContext null
@@ -322,7 +325,10 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun readHeadByDocumentId(documentId: String, maxChars: Int): String? =
+    override suspend fun readHeadByDocumentId(
+        documentId: String,
+        maxChars: Int,
+    ): String? =
         withContext(Dispatchers.IO) {
             try {
                 val fileUri = DocumentsContract.buildDocumentUriUsingTree(rootUri, documentId)

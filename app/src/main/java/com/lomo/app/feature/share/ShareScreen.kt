@@ -149,9 +149,10 @@ fun ShareScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
             )
         },
     ) { padding ->
@@ -308,9 +309,10 @@ fun ShareScreen(
                         itemsIndexed(devices, key = { _, item -> "${item.host}:${item.port}" }) { _, device ->
                             DeviceCard(
                                 device = device,
-                                isEnabled = transferState is ShareTransferState.Idle ||
-                                    transferState is ShareTransferState.Success ||
-                                    transferState is ShareTransferState.Error,
+                                isEnabled =
+                                    transferState is ShareTransferState.Idle ||
+                                        transferState is ShareTransferState.Success ||
+                                        transferState is ShareTransferState.Error,
                                 onClick = {
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
@@ -548,13 +550,15 @@ private fun LanShareSettingsCard(
                 singleLine = true,
                 label = { Text(stringResource(R.string.share_device_name_label)) },
                 placeholder = { Text(stringResource(R.string.share_device_name_placeholder)) },
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    imeAction = ImeAction.Done,
-                    keyboardType = KeyboardType.Text,
-                ),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                    onDone = { onSaveDeviceName() },
-                ),
+                keyboardOptions =
+                    androidx.compose.foundation.text.KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                        keyboardType = KeyboardType.Text,
+                    ),
+                keyboardActions =
+                    androidx.compose.foundation.text.KeyboardActions(
+                        onDone = { onSaveDeviceName() },
+                    ),
             )
 
             AnimatedVisibility(
@@ -640,31 +644,57 @@ private fun localizeShareErrorMessage(raw: String): String {
 private fun localizeShareErrorDetail(detailRaw: String): String {
     val detail = detailRaw.trim()
     return when {
-        detail.equals("Please set an end-to-end encryption password first", ignoreCase = true) ->
+        detail.equals("Please set an end-to-end encryption password first", ignoreCase = true) -> {
             stringResource(R.string.share_error_set_password_first)
-        detail.contains("pairing code is not configured on receiver", ignoreCase = true) ->
+        }
+
+        detail.contains("pairing code is not configured on receiver", ignoreCase = true) -> {
             stringResource(R.string.share_error_receiver_password_not_set)
-        detail.equals("Invalid attachment size", ignoreCase = true) ->
+        }
+
+        detail.equals("Invalid attachment size", ignoreCase = true) -> {
             stringResource(R.string.share_error_invalid_attachment_size)
-        detail.equals("Attachment too large", ignoreCase = true) ->
+        }
+
+        detail.equals("Attachment too large", ignoreCase = true) -> {
             stringResource(R.string.share_error_attachment_too_large)
-        detail.startsWith("Failed to resolve", ignoreCase = true) ->
+        }
+
+        detail.startsWith("Failed to resolve", ignoreCase = true) -> {
             stringResource(R.string.share_error_attachment_resolve_failed)
-        detail.startsWith("Unsupported attachment type", ignoreCase = true) ->
+        }
+
+        detail.startsWith("Unsupported attachment type", ignoreCase = true) -> {
             stringResource(R.string.share_error_unsupported_attachment_type)
-        detail.equals("Device unreachable", ignoreCase = true) ->
+        }
+
+        detail.equals("Device unreachable", ignoreCase = true) -> {
             stringResource(R.string.share_error_device_unreachable)
-        detail.equals("Pairing code must be 6-64 characters", ignoreCase = true) ->
+        }
+
+        detail.equals("Pairing code must be 6-64 characters", ignoreCase = true) -> {
             stringResource(R.string.share_error_invalid_pairing_code)
-        detail.equals("Invalid password", ignoreCase = true) ->
+        }
+
+        detail.equals("Invalid password", ignoreCase = true) -> {
             stringResource(R.string.share_error_invalid_pairing_code)
-        detail.equals("Transfer failed", ignoreCase = true) ->
+        }
+
+        detail.equals("Transfer failed", ignoreCase = true) -> {
             stringResource(R.string.share_error_transfer_failed)
-        detail.equals("Unknown error", ignoreCase = true) ->
+        }
+
+        detail.equals("Unknown error", ignoreCase = true) -> {
             stringResource(R.string.share_error_unknown)
-        detail.contains("pairing code is not configured", ignoreCase = true) ->
+        }
+
+        detail.contains("pairing code is not configured", ignoreCase = true) -> {
             stringResource(R.string.share_error_set_password_first)
-        else -> detail
+        }
+
+        else -> {
+            detail
+        }
     }
 }
 
@@ -713,47 +743,54 @@ private fun TransferStateBanner(
 
     val bannerState =
         when (state) {
-            is ShareTransferState.Sending ->
+            is ShareTransferState.Sending -> {
                 BannerState(
                     MaterialTheme.colorScheme.primaryContainer,
                     MaterialTheme.colorScheme.onPrimaryContainer,
                     null,
                     stringResource(R.string.share_status_connecting),
                 )
+            }
 
-            is ShareTransferState.WaitingApproval ->
+            is ShareTransferState.WaitingApproval -> {
                 BannerState(
                     MaterialTheme.colorScheme.primaryContainer,
                     MaterialTheme.colorScheme.onPrimaryContainer,
                     null,
                     stringResource(R.string.share_status_waiting_approval, state.deviceName),
                 )
+            }
 
-            is ShareTransferState.Transferring ->
+            is ShareTransferState.Transferring -> {
                 BannerState(
                     MaterialTheme.colorScheme.primaryContainer,
                     MaterialTheme.colorScheme.onPrimaryContainer,
                     null,
                     stringResource(R.string.share_status_transferring),
                 )
+            }
 
-            is ShareTransferState.Success ->
+            is ShareTransferState.Success -> {
                 BannerState(
                     MaterialTheme.colorScheme.tertiaryContainer,
                     MaterialTheme.colorScheme.onTertiaryContainer,
                     Icons.Filled.CheckCircle,
                     stringResource(R.string.share_status_sent, state.deviceName),
                 )
+            }
 
-            is ShareTransferState.Error ->
+            is ShareTransferState.Error -> {
                 BannerState(
                     MaterialTheme.colorScheme.errorContainer,
                     MaterialTheme.colorScheme.onErrorContainer,
                     Icons.Filled.Error,
                     localizeShareErrorMessage(state.message),
                 )
+            }
 
-            else -> return
+            else -> {
+                return
+            }
         }
 
     Surface(
@@ -860,8 +897,7 @@ private fun DeviceCard(
                             .background(
                                 color = MaterialTheme.colorScheme.surface,
                                 shape = CircleShape,
-                            )
-                            .padding(2.dp)
+                            ).padding(2.dp)
                             .background(
                                 color = MaterialTheme.colorScheme.tertiary,
                                 shape = CircleShape,
@@ -895,9 +931,7 @@ private fun DeviceCard(
 }
 
 @Composable
-private fun DeviceSearchingState(
-    modifier: Modifier = Modifier,
-) {
+private fun DeviceSearchingState(modifier: Modifier = Modifier) {
     val infiniteTransition = rememberInfiniteTransition(label = "search-pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.3f,

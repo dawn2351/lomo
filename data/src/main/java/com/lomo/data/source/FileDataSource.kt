@@ -49,9 +49,15 @@ interface FileDataSource {
 
     suspend fun readTrashFileByDocumentId(documentId: String): String?
 
-    suspend fun readHead(filename: String, maxChars: Int = 256): String?
+    suspend fun readHead(
+        filename: String,
+        maxChars: Int = 256,
+    ): String?
 
-    suspend fun readHeadByDocumentId(documentId: String, maxChars: Int = 256): String?
+    suspend fun readHeadByDocumentId(
+        documentId: String,
+        maxChars: Int = 256,
+    ): String?
 
     suspend fun readFile(filename: String): String?
 
@@ -267,9 +273,15 @@ class FileDataSourceImpl
 
         override suspend fun readTrashFileByDocumentId(documentId: String): String? = getBackend()?.readTrashFileByDocumentId(documentId)
 
-        override suspend fun readHead(filename: String, maxChars: Int): String? = getBackend()?.readHead(filename, maxChars)
+        override suspend fun readHead(
+            filename: String,
+            maxChars: Int,
+        ): String? = getBackend()?.readHead(filename, maxChars)
 
-        override suspend fun readHeadByDocumentId(documentId: String, maxChars: Int): String? = getBackend()?.readHeadByDocumentId(documentId, maxChars)
+        override suspend fun readHeadByDocumentId(
+            documentId: String,
+            maxChars: Int,
+        ): String? = getBackend()?.readHeadByDocumentId(documentId, maxChars)
 
         override suspend fun saveFile(
             filename: String,

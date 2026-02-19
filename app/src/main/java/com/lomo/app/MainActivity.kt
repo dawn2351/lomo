@@ -233,11 +233,12 @@ private fun LomoApp(
                                 modifier = Modifier.height(8.dp),
                             )
                             Text(
-                                text = pluralStringResource(
-                                    com.lomo.app.R.plurals.share_incoming_attachments_count,
-                                    payload.attachments.size,
-                                    payload.attachments.size,
-                                ),
+                                text =
+                                    pluralStringResource(
+                                        com.lomo.app.R.plurals.share_incoming_attachments_count,
+                                        payload.attachments.size,
+                                        payload.attachments.size,
+                                    ),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                             )

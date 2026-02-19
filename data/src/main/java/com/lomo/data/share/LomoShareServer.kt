@@ -7,10 +7,10 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
-import io.ktor.server.engine.EmbeddedServer
-import io.ktor.server.engine.embeddedServer
 import io.ktor.server.cio.CIO
 import io.ktor.server.cio.CIOApplicationEngine
+import io.ktor.server.engine.EmbeddedServer
+import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.request.receiveText
@@ -88,377 +88,390 @@ class LomoShareServer {
     // Callback to resolve local pairing key for request authentication
     var getPairingKeyHex: (suspend () -> String?)? = null
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
     suspend fun start(port: Int = 0): Int {
-        server = embeddedServer(CIO, port = port, host = "0.0.0.0") {
-            install(ContentNegotiation) {
-                json(json)
-            }
-
-            routing {
-                get("/share/ping") {
-                    call.respondText("pong", ContentType.Text.Plain)
+        server =
+            embeddedServer(CIO, port = port, host = "0.0.0.0") {
+                install(ContentNegotiation) {
+                    json(json)
                 }
 
-                // Phase 1: Prepare - sender asks if receiver will accept
-                post("/share/prepare") {
-                    try {
-                        val contentLength = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-                        if (contentLength != null && contentLength > MAX_PREPARE_BODY_CHARS) {
-                            call.respond(HttpStatusCode.PayloadTooLarge, "Prepare payload too large")
-                            return@post
-                        }
+                routing {
+                    get("/share/ping") {
+                        call.respondText("pong", ContentType.Text.Plain)
+                    }
 
-                        val body = call.receiveText()
-                        if (body.length > MAX_PREPARE_BODY_CHARS) {
-                            call.respond(HttpStatusCode.PayloadTooLarge, "Prepare payload too large")
-                            return@post
-                        }
-                        val request = json.decodeFromString<PrepareRequest>(body)
-                        val validationError = validatePrepareRequest(request)
-                        if (validationError != null) {
-                            call.respond(HttpStatusCode.BadRequest, validationError)
-                            return@post
-                        }
-                        val authValidation = validatePrepareAuthentication(request)
-                        if (!authValidation.ok) {
-                            call.respond(authValidation.status, authValidation.message)
-                            return@post
-                        }
-                        val keyHex = authValidation.keyHex
-                        if (keyHex.isNullOrBlank()) {
-                            call.respond(HttpStatusCode.PreconditionFailed, "Missing pairing key")
-                            return@post
-                        }
-                        val decryptedContent =
-                            ShareCryptoUtils.decryptText(
-                                keyHex = keyHex,
-                                ciphertextBase64 = request.encryptedContent,
-                                nonceBase64 = request.contentNonce,
-                                aad = "memo-content",
-                            )
-                        if (decryptedContent == null) {
-                            call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt prepare content")
-                            return@post
-                        }
-                        if (decryptedContent.length > MAX_MEMO_CHARS) {
-                            call.respond(HttpStatusCode.PayloadTooLarge, "Memo content too large")
-                            return@post
-                        }
-
-                        val payload = request.toSharePayload(decryptedContent)
-                        val normalizedNames = request.attachments.map { it.name.trim() }
-                        val requestHash = buildRequestHash(decryptedContent, request.timestamp, normalizedNames)
-
-                        Timber.tag(TAG).d("Prepare request from: ${payload.senderName}")
-
-                        val deferred = CompletableDeferred<Boolean>()
-                        val shouldContinue =
-                            synchronized(stateLock) {
-                                cleanupExpiredSessionsLocked()
-                                if (pendingApproval != null) {
-                                    false
-                                } else {
-                                    pendingApproval = PendingApproval(deferred)
-                                    true
-                                }
+                    // Phase 1: Prepare - sender asks if receiver will accept
+                    post("/share/prepare") {
+                        try {
+                            val contentLength = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+                            if (contentLength != null && contentLength > MAX_PREPARE_BODY_CHARS) {
+                                call.respond(HttpStatusCode.PayloadTooLarge, "Prepare payload too large")
+                                return@post
                             }
-                        if (!shouldContinue) {
-                            call.respond(
-                                HttpStatusCode.TooManyRequests,
+
+                            val body = call.receiveText()
+                            if (body.length > MAX_PREPARE_BODY_CHARS) {
+                                call.respond(HttpStatusCode.PayloadTooLarge, "Prepare payload too large")
+                                return@post
+                            }
+                            val request = json.decodeFromString<PrepareRequest>(body)
+                            val validationError = validatePrepareRequest(request)
+                            if (validationError != null) {
+                                call.respond(HttpStatusCode.BadRequest, validationError)
+                                return@post
+                            }
+                            val authValidation = validatePrepareAuthentication(request)
+                            if (!authValidation.ok) {
+                                call.respond(authValidation.status, authValidation.message)
+                                return@post
+                            }
+                            val keyHex = authValidation.keyHex
+                            if (keyHex.isNullOrBlank()) {
+                                call.respond(HttpStatusCode.PreconditionFailed, "Missing pairing key")
+                                return@post
+                            }
+                            val decryptedContent =
+                                ShareCryptoUtils.decryptText(
+                                    keyHex = keyHex,
+                                    ciphertextBase64 = request.encryptedContent,
+                                    nonceBase64 = request.contentNonce,
+                                    aad = "memo-content",
+                                )
+                            if (decryptedContent == null) {
+                                call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt prepare content")
+                                return@post
+                            }
+                            if (decryptedContent.length > MAX_MEMO_CHARS) {
+                                call.respond(HttpStatusCode.PayloadTooLarge, "Memo content too large")
+                                return@post
+                            }
+
+                            val payload = request.toSharePayload(decryptedContent)
+                            val normalizedNames = request.attachments.map { it.name.trim() }
+                            val requestHash = buildRequestHash(decryptedContent, request.timestamp, normalizedNames)
+
+                            Timber.tag(TAG).d("Prepare request from: ${payload.senderName}")
+
+                            val deferred = CompletableDeferred<Boolean>()
+                            val shouldContinue =
+                                synchronized(stateLock) {
+                                    cleanupExpiredSessionsLocked()
+                                    if (pendingApproval != null) {
+                                        false
+                                    } else {
+                                        pendingApproval = PendingApproval(deferred)
+                                        true
+                                    }
+                                }
+                            if (!shouldContinue) {
+                                call.respond(
+                                    HttpStatusCode.TooManyRequests,
+                                    json.encodeToString(
+                                        PrepareResponse.serializer(),
+                                        PrepareResponse(accepted = false, sessionToken = null),
+                                    ),
+                                )
+                                return@post
+                            }
+
+                            onIncomingPrepare?.invoke(payload)
+
+                            val accepted =
+                                try {
+                                    withTimeout(APPROVAL_TIMEOUT_MS) {
+                                        deferred.await()
+                                    }
+                                } catch (e: TimeoutCancellationException) {
+                                    Timber.tag(TAG).w("Approval timed out")
+                                    false
+                                }
+                            val sessionToken =
+                                if (accepted) {
+                                    val token = UUID.randomUUID().toString()
+                                    synchronized(stateLock) {
+                                        approvedSessions[token] =
+                                            ApprovedSession(
+                                                requestHash = requestHash,
+                                                attachmentNames = normalizedNames.toSet(),
+                                                createdAtMs = System.currentTimeMillis(),
+                                            )
+                                    }
+                                    token
+                                } else {
+                                    null
+                                }
+
+                            call.respondText(
                                 json.encodeToString(
                                     PrepareResponse.serializer(),
-                                    PrepareResponse(accepted = false, sessionToken = null),
+                                    PrepareResponse(accepted = accepted, sessionToken = sessionToken),
                                 ),
+                                ContentType.Application.Json,
                             )
-                            return@post
-                        }
-
-                        onIncomingPrepare?.invoke(payload)
-
-                        val accepted = try {
-                            withTimeout(APPROVAL_TIMEOUT_MS) {
-                                deferred.await()
+                        } catch (e: Exception) {
+                            Timber.tag(TAG).e(e, "Error handling prepare request")
+                            call.respond(HttpStatusCode.InternalServerError, "Error")
+                        } finally {
+                            synchronized(stateLock) {
+                                pendingApproval = null
                             }
-                        } catch (e: TimeoutCancellationException) {
-                            Timber.tag(TAG).w("Approval timed out")
-                            false
-                        }
-                        val sessionToken =
-                            if (accepted) {
-                                val token = UUID.randomUUID().toString()
-                                synchronized(stateLock) {
-                                    approvedSessions[token] =
-                                        ApprovedSession(
-                                            requestHash = requestHash,
-                                            attachmentNames = normalizedNames.toSet(),
-                                            createdAtMs = System.currentTimeMillis(),
-                                        )
-                                }
-                                token
-                            } else {
-                                null
-                            }
-
-                        call.respondText(
-                            json.encodeToString(
-                                PrepareResponse.serializer(),
-                                PrepareResponse(accepted = accepted, sessionToken = sessionToken),
-                            ),
-                            ContentType.Application.Json,
-                        )
-                    } catch (e: Exception) {
-                        Timber.tag(TAG).e(e, "Error handling prepare request")
-                        call.respond(HttpStatusCode.InternalServerError, "Error")
-                    } finally {
-                        synchronized(stateLock) {
-                            pendingApproval = null
                         }
                     }
-                }
 
-                // Phase 2: Transfer - sender uploads memo + attachments
-                post("/share/transfer") {
-                    try {
-                        val contentLength = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-                        if (contentLength != null && contentLength > MAX_TRANSFER_BODY_BYTES) {
-                            call.respond(HttpStatusCode.PayloadTooLarge, "Transfer payload too large")
-                            return@post
-                        }
+                    // Phase 2: Transfer - sender uploads memo + attachments
+                    post("/share/transfer") {
+                        try {
+                            val contentLength = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+                            if (contentLength != null && contentLength > MAX_TRANSFER_BODY_BYTES) {
+                                call.respond(HttpStatusCode.PayloadTooLarge, "Transfer payload too large")
+                                return@post
+                            }
 
-                        val multipart = call.receiveMultipart()
-                        var metadata: TransferMetadata? = null
-                        var transferKeyHex: String? = null
-                        var decryptedContent: String? = null
-                        var expectedAttachmentNames = emptySet<String>()
-                        var expectedAttachmentNonces = emptyMap<String, String>()
-                        var expectedByUploadName = emptyMap<String, String>()
-                        val attachmentMappings = mutableMapOf<String, String>() // original -> new path
-                        val receivedAttachmentNames = mutableSetOf<String>()
-                        var totalAttachmentBytes = 0L
+                            val multipart = call.receiveMultipart()
+                            var metadata: TransferMetadata? = null
+                            var transferKeyHex: String? = null
+                            var decryptedContent: String? = null
+                            var expectedAttachmentNames = emptySet<String>()
+                            var expectedAttachmentNonces = emptyMap<String, String>()
+                            var expectedByUploadName = emptyMap<String, String>()
+                            val attachmentMappings = mutableMapOf<String, String>() // original -> new path
+                            val receivedAttachmentNames = mutableSetOf<String>()
+                            var totalAttachmentBytes = 0L
 
-                        var part = multipart.readPart()
-                        while (part != null) {
-                            when (part) {
-                                is io.ktor.http.content.PartData.FormItem -> {
-                                    if (part.name == "metadata") {
-                                        if (metadata != null) {
+                            var part = multipart.readPart()
+                            while (part != null) {
+                                when (part) {
+                                    is io.ktor.http.content.PartData.FormItem -> {
+                                        if (part.name == "metadata") {
+                                            if (metadata != null) {
+                                                part.dispose()
+                                                call.respond(HttpStatusCode.BadRequest, "Duplicate metadata")
+                                                return@post
+                                            }
+                                            val meta = json.decodeFromString<TransferMetadata>(part.value)
+                                            metadata = meta
+                                            val metaError = validateTransferMetadata(meta)
+                                            if (metaError != null) {
+                                                part.dispose()
+                                                call.respond(HttpStatusCode.BadRequest, metaError)
+                                                return@post
+                                            }
+                                            val authValidation = validateTransferAuthentication(meta)
+                                            if (!authValidation.ok) {
+                                                part.dispose()
+                                                call.respond(authValidation.status, authValidation.message)
+                                                return@post
+                                            }
+                                            val keyHex = authValidation.keyHex
+                                            if (keyHex.isNullOrBlank()) {
+                                                part.dispose()
+                                                call.respond(HttpStatusCode.PreconditionFailed, "Missing pairing key")
+                                                return@post
+                                            }
+                                            val plainContent =
+                                                ShareCryptoUtils.decryptText(
+                                                    keyHex = keyHex,
+                                                    ciphertextBase64 = meta.encryptedContent,
+                                                    nonceBase64 = meta.contentNonce,
+                                                    aad = "memo-content",
+                                                )
+                                            if (plainContent == null) {
+                                                part.dispose()
+                                                call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt transfer content")
+                                                return@post
+                                            }
+                                            if (plainContent.length > MAX_MEMO_CHARS) {
+                                                part.dispose()
+                                                call.respond(HttpStatusCode.PayloadTooLarge, "Memo content too large")
+                                                return@post
+                                            }
+
+                                            val normalizedNames = meta.attachmentNames.map { it.trim() }
+                                            val requestHash = buildRequestHash(plainContent, meta.timestamp, normalizedNames)
+                                            val validSession =
+                                                synchronized(stateLock) {
+                                                    cleanupExpiredSessionsLocked()
+                                                    val existing = approvedSessions[meta.sessionToken]
+                                                    if (existing == null ||
+                                                        existing.requestHash != requestHash ||
+                                                        existing.attachmentNames != normalizedNames.toSet()
+                                                    ) {
+                                                        false
+                                                    } else {
+                                                        approvedSessions.remove(meta.sessionToken)
+                                                        true
+                                                    }
+                                                }
+                                            if (!validSession) {
+                                                part.dispose()
+                                                call.respond(HttpStatusCode.Forbidden, "Invalid or expired share session")
+                                                return@post
+                                            }
+                                            expectedAttachmentNames = normalizedNames.toSet()
+                                            expectedAttachmentNonces = meta.attachmentNonces.mapKeys { it.key.trim() }
+                                            expectedByUploadName = buildUploadNameLookup(expectedAttachmentNames)
+                                            transferKeyHex = keyHex
+                                            decryptedContent = plainContent
+                                        }
+                                    }
+
+                                    is io.ktor.http.content.PartData.FileItem -> {
+                                        if (metadata == null) {
                                             part.dispose()
-                                            call.respond(HttpStatusCode.BadRequest, "Duplicate metadata")
+                                            call.respond(HttpStatusCode.BadRequest, "Metadata must be sent before attachments")
                                             return@post
                                         }
-                                        val meta = json.decodeFromString<TransferMetadata>(part.value)
-                                        metadata = meta
-                                        val metaError = validateTransferMetadata(meta)
-                                        if (metaError != null) {
+
+                                        val uploadName = part.originalFileName?.trim()
+                                        val expectedReferenceName =
+                                            when {
+                                                uploadName.isNullOrEmpty() -> null
+                                                uploadName in expectedAttachmentNames -> uploadName
+                                                else -> expectedByUploadName[baseAttachmentName(uploadName)]
+                                            }
+                                        if (expectedReferenceName == null) {
                                             part.dispose()
-                                            call.respond(HttpStatusCode.BadRequest, metaError)
+                                            call.respond(HttpStatusCode.BadRequest, "Unexpected attachment")
                                             return@post
                                         }
-                                        val authValidation = validateTransferAuthentication(meta)
-                                        if (!authValidation.ok) {
+                                        if (!receivedAttachmentNames.add(expectedReferenceName)) {
                                             part.dispose()
-                                            call.respond(authValidation.status, authValidation.message)
+                                            call.respond(HttpStatusCode.BadRequest, "Duplicate attachment")
                                             return@post
                                         }
-                                        val keyHex = authValidation.keyHex
+
+                                        val type =
+                                            when {
+                                                part.contentType?.match(ContentType.Image.Any) == true -> "image"
+                                                part.contentType?.match(ContentType.Audio.Any) == true -> "audio"
+                                                else -> "unknown"
+                                            }
+                                        if (type == "unknown") {
+                                            part.dispose()
+                                            call.respond(HttpStatusCode.UnsupportedMediaType, "Unsupported attachment type")
+                                            return@post
+                                        }
+
+                                        val bytes = readBytesLimited(part, MAX_ATTACHMENT_ENCRYPTED_SIZE_BYTES)
+                                        totalAttachmentBytes += bytes.size.toLong()
+                                        if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_ENCRYPTED_BYTES) {
+                                            part.dispose()
+                                            call.respond(HttpStatusCode.PayloadTooLarge, "Attachments too large")
+                                            return@post
+                                        }
+
+                                        val attachmentNonce = expectedAttachmentNonces[expectedReferenceName]
+                                        if (attachmentNonce.isNullOrBlank()) {
+                                            part.dispose()
+                                            call.respond(HttpStatusCode.BadRequest, "Missing attachment nonce")
+                                            return@post
+                                        }
+                                        val keyHex = transferKeyHex
                                         if (keyHex.isNullOrBlank()) {
                                             part.dispose()
-                                            call.respond(HttpStatusCode.PreconditionFailed, "Missing pairing key")
+                                            call.respond(HttpStatusCode.PreconditionFailed, "Missing transfer key")
                                             return@post
                                         }
-                                        val plainContent =
-                                            ShareCryptoUtils.decryptText(
+                                        val decryptedBytes =
+                                            ShareCryptoUtils.decryptBytes(
                                                 keyHex = keyHex,
-                                                ciphertextBase64 = meta.encryptedContent,
-                                                nonceBase64 = meta.contentNonce,
-                                                aad = "memo-content",
+                                                ciphertext = bytes,
+                                                nonceBase64 = attachmentNonce,
+                                                aad = "attachment:$expectedReferenceName",
                                             )
-                                        if (plainContent == null) {
+                                        if (decryptedBytes == null) {
                                             part.dispose()
-                                            call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt transfer content")
+                                            call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt attachment")
                                             return@post
                                         }
-                                        if (plainContent.length > MAX_MEMO_CHARS) {
+                                        if (decryptedBytes.size.toLong() > MAX_ATTACHMENT_SIZE_BYTES) {
                                             part.dispose()
-                                            call.respond(HttpStatusCode.PayloadTooLarge, "Memo content too large")
+                                            call.respond(HttpStatusCode.PayloadTooLarge, "Attachment too large")
                                             return@post
                                         }
 
-                                        val normalizedNames = meta.attachmentNames.map { it.trim() }
-                                        val requestHash = buildRequestHash(plainContent, meta.timestamp, normalizedNames)
-                                        val validSession =
-                                            synchronized(stateLock) {
-                                                cleanupExpiredSessionsLocked()
-                                                val existing = approvedSessions[meta.sessionToken]
-                                                if (existing == null ||
-                                                    existing.requestHash != requestHash ||
-                                                    existing.attachmentNames != normalizedNames.toSet()
-                                                ) {
-                                                    false
-                                                } else {
-                                                    approvedSessions.remove(meta.sessionToken)
-                                                    true
-                                                }
-                                            }
-                                        if (!validSession) {
-                                            part.dispose()
-                                            call.respond(HttpStatusCode.Forbidden, "Invalid or expired share session")
-                                            return@post
+                                        val safeStorageName = sanitizeStorageFilename(expectedReferenceName)
+                                        Timber
+                                            .tag(
+                                                TAG,
+                                            ).d("Received attachment: $expectedReferenceName ($type, ${decryptedBytes.size} bytes)")
+
+                                        val savedPath =
+                                            onSaveAttachment?.invoke(
+                                                safeStorageName,
+                                                type,
+                                                decryptedBytes,
+                                            )
+                                        if (!savedPath.isNullOrBlank()) {
+                                            attachmentMappings[expectedReferenceName] = savedPath
+                                        } else {
+                                            throw IllegalStateException("Failed to save attachment: $expectedReferenceName")
                                         }
-                                        expectedAttachmentNames = normalizedNames.toSet()
-                                        expectedAttachmentNonces = meta.attachmentNonces.mapKeys { it.key.trim() }
-                                        expectedByUploadName = buildUploadNameLookup(expectedAttachmentNames)
-                                        transferKeyHex = keyHex
-                                        decryptedContent = plainContent
                                     }
+
+                                    else -> {}
                                 }
-
-                                is io.ktor.http.content.PartData.FileItem -> {
-                                    if (metadata == null) {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.BadRequest, "Metadata must be sent before attachments")
-                                        return@post
-                                    }
-
-                                    val uploadName = part.originalFileName?.trim()
-                                    val expectedReferenceName =
-                                        when {
-                                            uploadName.isNullOrEmpty() -> null
-                                            uploadName in expectedAttachmentNames -> uploadName
-                                            else -> expectedByUploadName[baseAttachmentName(uploadName)]
-                                        }
-                                    if (expectedReferenceName == null) {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.BadRequest, "Unexpected attachment")
-                                        return@post
-                                    }
-                                    if (!receivedAttachmentNames.add(expectedReferenceName)) {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.BadRequest, "Duplicate attachment")
-                                        return@post
-                                    }
-
-                                    val type = when {
-                                        part.contentType?.match(ContentType.Image.Any) == true -> "image"
-                                        part.contentType?.match(ContentType.Audio.Any) == true -> "audio"
-                                        else -> "unknown"
-                                    }
-                                    if (type == "unknown") {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.UnsupportedMediaType, "Unsupported attachment type")
-                                        return@post
-                                    }
-
-                                    val bytes = readBytesLimited(part, MAX_ATTACHMENT_ENCRYPTED_SIZE_BYTES)
-                                    totalAttachmentBytes += bytes.size.toLong()
-                                    if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_ENCRYPTED_BYTES) {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.PayloadTooLarge, "Attachments too large")
-                                        return@post
-                                    }
-
-                                    val attachmentNonce = expectedAttachmentNonces[expectedReferenceName]
-                                    if (attachmentNonce.isNullOrBlank()) {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.BadRequest, "Missing attachment nonce")
-                                        return@post
-                                    }
-                                    val keyHex = transferKeyHex
-                                    if (keyHex.isNullOrBlank()) {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.PreconditionFailed, "Missing transfer key")
-                                        return@post
-                                    }
-                                    val decryptedBytes =
-                                        ShareCryptoUtils.decryptBytes(
-                                            keyHex = keyHex,
-                                            ciphertext = bytes,
-                                            nonceBase64 = attachmentNonce,
-                                            aad = "attachment:$expectedReferenceName",
-                                        )
-                                    if (decryptedBytes == null) {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt attachment")
-                                        return@post
-                                    }
-                                    if (decryptedBytes.size.toLong() > MAX_ATTACHMENT_SIZE_BYTES) {
-                                        part.dispose()
-                                        call.respond(HttpStatusCode.PayloadTooLarge, "Attachment too large")
-                                        return@post
-                                    }
-
-                                    val safeStorageName = sanitizeStorageFilename(expectedReferenceName)
-                                    Timber.tag(TAG).d("Received attachment: $expectedReferenceName ($type, ${decryptedBytes.size} bytes)")
-
-                                    val savedPath = onSaveAttachment?.invoke(
-                                        safeStorageName,
-                                        type,
-                                        decryptedBytes,
-                                    )
-                                    if (!savedPath.isNullOrBlank()) {
-                                        attachmentMappings[expectedReferenceName] = savedPath
-                                    } else {
-                                        throw IllegalStateException("Failed to save attachment: $expectedReferenceName")
-                                    }
-                                }
-
-                                else -> {}
+                                part.dispose()
+                                part = multipart.readPart()
                             }
-                            part.dispose()
-                            part = multipart.readPart()
-                        }
 
-                        val meta = metadata
-                        if (meta == null) {
-                            call.respond(HttpStatusCode.BadRequest, "Missing metadata")
-                            return@post
-                        }
+                            val meta = metadata
+                            if (meta == null) {
+                                call.respond(HttpStatusCode.BadRequest, "Missing metadata")
+                                return@post
+                            }
 
-                        if (expectedAttachmentNames != receivedAttachmentNames) {
-                            call.respond(HttpStatusCode.BadRequest, "Attachment set mismatch")
-                            return@post
-                        }
+                            if (expectedAttachmentNames != receivedAttachmentNames) {
+                                call.respond(HttpStatusCode.BadRequest, "Attachment set mismatch")
+                                return@post
+                            }
 
-                        if (onSaveMemo == null) {
-                            throw IllegalStateException("Memo saver callback is not configured")
-                        }
-                        val contentToSave = decryptedContent
-                        if (contentToSave == null) {
-                            call.respond(HttpStatusCode.BadRequest, "Missing decrypted content")
-                            return@post
-                        }
-                        onSaveMemo?.invoke(contentToSave, meta.timestamp, attachmentMappings)
-                        Timber.tag(TAG).d("Memo saved with ${attachmentMappings.size} attachments")
+                            if (onSaveMemo == null) {
+                                throw IllegalStateException("Memo saver callback is not configured")
+                            }
+                            val contentToSave = decryptedContent
+                            if (contentToSave == null) {
+                                call.respond(HttpStatusCode.BadRequest, "Missing decrypted content")
+                                return@post
+                            }
+                            onSaveMemo?.invoke(contentToSave, meta.timestamp, attachmentMappings)
+                            Timber.tag(TAG).d("Memo saved with ${attachmentMappings.size} attachments")
 
-                        call.respondText(
-                            json.encodeToString(TransferResponse.serializer(), TransferResponse(true)),
-                            ContentType.Application.Json,
-                        )
-                    } catch (e: IllegalArgumentException) {
-                        Timber.tag(TAG).w(e, "Rejected transfer payload")
-                        call.respond(HttpStatusCode.PayloadTooLarge, e.message ?: "Transfer payload too large")
-                    } catch (e: Exception) {
-                        Timber.tag(TAG).e(e, "Error handling transfer request")
-                        call.respond(HttpStatusCode.InternalServerError, "Transfer error")
+                            call.respondText(
+                                json.encodeToString(TransferResponse.serializer(), TransferResponse(true)),
+                                ContentType.Application.Json,
+                            )
+                        } catch (e: IllegalArgumentException) {
+                            Timber.tag(TAG).w(e, "Rejected transfer payload")
+                            call.respond(HttpStatusCode.PayloadTooLarge, e.message ?: "Transfer payload too large")
+                        } catch (e: Exception) {
+                            Timber.tag(TAG).e(e, "Error handling transfer request")
+                            call.respond(HttpStatusCode.InternalServerError, "Transfer error")
+                        }
                     }
                 }
-            }
-        }.start(wait = false)
+            }.start(wait = false)
 
         // Get the actual bound port
         // CIO binds quickly; poll a few times to be safe
         var resolvedPort: Int? = null
         repeat(5) {
-            resolvedPort = server?.engine?.resolvedConnectors()?.firstOrNull()?.port
+            resolvedPort =
+                server
+                    ?.engine
+                    ?.resolvedConnectors()
+                    ?.firstOrNull()
+                    ?.port
             if (resolvedPort != null && resolvedPort != 0) return@repeat
             kotlinx.coroutines.delay(100)
         }
-        
+
         val finalPort = resolvedPort ?: port
         Timber.tag(TAG).d("Server started on port $finalPort")
         return finalPort
@@ -607,11 +620,12 @@ class LomoShareServer {
                 message = "LAN share pairing code is not configured on receiver",
             )
         }
-        val keyHex = pairingKeyHex ?: return AuthValidation(
-            ok = false,
-            status = HttpStatusCode.PreconditionFailed,
-            message = "LAN share pairing code is not configured on receiver",
-        )
+        val keyHex =
+            pairingKeyHex ?: return AuthValidation(
+                ok = false,
+                status = HttpStatusCode.PreconditionFailed,
+                message = "LAN share pairing code is not configured on receiver",
+            )
         if (!ShareAuthUtils.isTimestampWithinWindow(request.authTimestampMs)) {
             return AuthValidation(false, HttpStatusCode.Unauthorized, "Expired auth timestamp")
         }
@@ -650,11 +664,12 @@ class LomoShareServer {
                 message = "LAN share pairing code is not configured on receiver",
             )
         }
-        val keyHex = pairingKeyHex ?: return AuthValidation(
-            ok = false,
-            status = HttpStatusCode.PreconditionFailed,
-            message = "LAN share pairing code is not configured on receiver",
-        )
+        val keyHex =
+            pairingKeyHex ?: return AuthValidation(
+                ok = false,
+                status = HttpStatusCode.PreconditionFailed,
+                message = "LAN share pairing code is not configured on receiver",
+            )
         if (!ShareAuthUtils.isTimestampWithinWindow(metadata.authTimestampMs)) {
             return AuthValidation(false, HttpStatusCode.Unauthorized, "Expired auth timestamp")
         }
@@ -707,19 +722,18 @@ class LomoShareServer {
         }
     }
 
-    private fun baseAttachmentName(name: String): String {
-        return name.substringAfterLast('/').substringAfterLast('\\')
-    }
+    private fun baseAttachmentName(name: String): String = name.substringAfterLast('/').substringAfterLast('\\')
 
     private fun buildUploadNameLookup(expectedAttachmentNames: Set<String>): Map<String, String> {
         val grouped = expectedAttachmentNames.groupBy { baseAttachmentName(it) }
-        return grouped.mapNotNull { (uploadName, refs) ->
-            if (uploadName.isBlank() || refs.size != 1) {
-                null
-            } else {
-                uploadName to refs.first()
-            }
-        }.toMap()
+        return grouped
+            .mapNotNull { (uploadName, refs) ->
+                if (uploadName.isBlank() || refs.size != 1) {
+                    null
+                } else {
+                    uploadName to refs.first()
+                }
+            }.toMap()
     }
 
     private fun cleanupExpiredSessionsLocked(nowMs: Long = System.currentTimeMillis()) {
@@ -734,8 +748,8 @@ class LomoShareServer {
         }
     }
 
-    private fun registerNonce(nonce: String): Boolean {
-        return synchronized(stateLock) {
+    private fun registerNonce(nonce: String): Boolean =
+        synchronized(stateLock) {
             val now = System.currentTimeMillis()
             cleanupExpiredAuthNoncesLocked(now)
             if (usedAuthNonces.containsKey(nonce)) {
@@ -752,7 +766,6 @@ class LomoShareServer {
                 true
             }
         }
-    }
 
     private fun isValidAuthNonce(nonce: String): Boolean {
         if (nonce.isBlank() || nonce.length > MAX_AUTH_NONCE_CHARS) return false
@@ -768,9 +781,7 @@ class LomoShareServer {
         }
     }
 
-    private fun isValidSignatureHex(signature: String): Boolean {
-        return signature.matches(Regex("^[0-9a-fA-F]{64}$"))
-    }
+    private fun isValidSignatureHex(signature: String): Boolean = signature.matches(Regex("^[0-9a-fA-F]{64}$"))
 
     private fun buildRequestHash(
         content: String,

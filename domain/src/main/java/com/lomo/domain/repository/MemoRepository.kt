@@ -14,35 +14,63 @@ import kotlinx.coroutines.flow.Flow
 interface MemoRepository {
     // Directory reads
     fun getRootDirectory(): Flow<String?>
+
     suspend fun getRootDirectoryOnce(): String?
+
     fun getRootDisplayName(): Flow<String?>
+
     fun getImageDirectory(): Flow<String?>
+
     fun getImageDisplayName(): Flow<String?>
+
     fun getVoiceDirectory(): Flow<String?>
+
     fun getVoiceDisplayName(): Flow<String?>
 
     // Data operations
     fun getAllMemos(): Flow<PagingData<Memo>>
+
     suspend fun getRandomMemos(limit: Int): List<Memo>
-    suspend fun getDailyReviewMemos(limit: Int, seedDate: java.time.LocalDate): List<Memo>
+
+    suspend fun getDailyReviewMemos(
+        limit: Int,
+        seedDate: java.time.LocalDate,
+    ): List<Memo>
+
     suspend fun refreshMemos()
+
     fun isSyncing(): Flow<Boolean>
-    suspend fun saveMemo(content: String, timestamp: Long = System.currentTimeMillis())
-    suspend fun updateMemo(memo: Memo, newContent: String)
+
+    suspend fun saveMemo(
+        content: String,
+        timestamp: Long = System.currentTimeMillis(),
+    )
+
+    suspend fun updateMemo(
+        memo: Memo,
+        newContent: String,
+    )
+
     suspend fun deleteMemo(memo: Memo)
 
     // Search & Filter
     fun searchMemos(query: String): Flow<PagingData<Memo>>
+
     fun getMemosByTag(tag: String): Flow<PagingData<Memo>>
 
     // Stats
     fun getMemoCount(): Flow<Int>
+
     fun getAllTimestamps(): Flow<List<Long>>
+
     fun getTagCounts(): Flow<List<TagCount>>
+
     fun getAllTags(): Flow<List<String>>
 
     // Trash
     fun getDeletedMemos(): Flow<PagingData<Memo>>
+
     suspend fun restoreMemo(memo: Memo)
+
     suspend fun deletePermanently(memo: Memo)
 }

@@ -12,4 +12,3 @@ data class MemoTokenEntity(
     val token: String,
     val memoId: String,
 )
-

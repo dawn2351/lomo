@@ -44,15 +44,14 @@ internal object ShareCryptoUtils {
         ciphertextBase64: String,
         nonceBase64: String,
         aad: String? = null,
-    ): String? {
-        return try {
+    ): String? =
+        try {
             val ciphertext = Base64.getDecoder().decode(ciphertextBase64)
             val plaintext = decryptBytesInternal(keyHex, ciphertext, nonceBase64, aad)
             plaintext?.toString(Charsets.UTF_8)
         } catch (_: Exception) {
             null
         }
-    }
 
     fun encryptBytes(
         keyHex: String,
@@ -116,4 +115,3 @@ internal object ShareCryptoUtils {
         return chunked(2).map { it.toInt(16).toByte() }.toByteArray()
     }
 }
-

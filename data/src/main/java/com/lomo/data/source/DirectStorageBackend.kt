@@ -140,7 +140,10 @@ class DirectStorageBackend(
 
     override suspend fun readTrashFileByDocumentId(documentId: String): String? = readTrashFile(documentId)
 
-    override suspend fun readHead(filename: String, maxChars: Int): String? =
+    override suspend fun readHead(
+        filename: String,
+        maxChars: Int,
+    ): String? =
         withContext(Dispatchers.IO) {
             val file = File(rootDir, filename)
             if (!file.exists()) return@withContext null
@@ -151,7 +154,10 @@ class DirectStorageBackend(
             }
         }
 
-    override suspend fun readHeadByDocumentId(documentId: String, maxChars: Int): String? = readHead(documentId, maxChars)
+    override suspend fun readHeadByDocumentId(
+        documentId: String,
+        maxChars: Int,
+    ): String? = readHead(documentId, maxChars)
 
     // --- File writing ---
 

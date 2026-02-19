@@ -33,11 +33,24 @@ data class SharePayload(
  */
 sealed interface ShareTransferState {
     data object Idle : ShareTransferState
+
     data object Sending : ShareTransferState
-    data class WaitingApproval(val deviceName: String) : ShareTransferState
-    data class Transferring(val progress: Float) : ShareTransferState
-    data class Success(val deviceName: String) : ShareTransferState
-    data class Error(val message: String) : ShareTransferState
+
+    data class WaitingApproval(
+        val deviceName: String,
+    ) : ShareTransferState
+
+    data class Transferring(
+        val progress: Float,
+    ) : ShareTransferState
+
+    data class Success(
+        val deviceName: String,
+    ) : ShareTransferState
+
+    data class Error(
+        val message: String,
+    ) : ShareTransferState
 }
 
 /**
@@ -45,5 +58,8 @@ sealed interface ShareTransferState {
  */
 sealed interface IncomingShareState {
     data object None : IncomingShareState
-    data class Pending(val payload: SharePayload) : IncomingShareState
+
+    data class Pending(
+        val payload: SharePayload,
+    ) : IncomingShareState
 }

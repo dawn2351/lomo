@@ -20,7 +20,8 @@ internal object ShareAuthUtils {
         val normalized = pairingCode.trim()
         if (normalized.length !in 6..64) return null
         val digest =
-            MessageDigest.getInstance("SHA-256")
+            MessageDigest
+                .getInstance("SHA-256")
                 .digest("$KEY_DERIVATION_SALT:$normalized".toByteArray(Charsets.UTF_8))
         return digest.toHexString()
     }
@@ -40,9 +41,7 @@ internal object ShareAuthUtils {
         timestampMs: Long,
         nowMs: Long = System.currentTimeMillis(),
         windowMs: Long = AUTH_WINDOW_MS,
-    ): Boolean {
-        return kotlin.math.abs(nowMs - timestampMs) <= windowMs
-    }
+    ): Boolean = kotlin.math.abs(nowMs - timestampMs) <= windowMs
 
     fun buildPreparePayloadToSign(
         senderName: String,

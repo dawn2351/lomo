@@ -245,7 +245,11 @@ class MemoSynchronizer
                                     if (!it.isDeleted) {
                                         val tokens = tokenized.split(' ').filter { s -> s.isNotBlank() }
                                         if (tokens.isNotEmpty()) {
-                                            val tokenEntities = tokens.map { t -> com.lomo.data.local.entity.MemoTokenEntity(t, it.id) }
+                                            val tokenEntities =
+                                                tokens.map { t ->
+                                                    com.lomo.data.local.entity
+                                                        .MemoTokenEntity(t, it.id)
+                                                }
                                             tokenDao.insertAll(tokenEntities)
                                         }
                                     }
@@ -302,7 +306,14 @@ class MemoSynchronizer
                     tokenDao.deleteByMemoId(it.id)
                     if (!it.isDeleted) {
                         val tokens = tokenized.split(' ').filter { s -> s.isNotBlank() }
-                        if (tokens.isNotEmpty()) tokenDao.insertAll(tokens.map { t -> com.lomo.data.local.entity.MemoTokenEntity(t, it.id) })
+                        if (tokens.isNotEmpty()) {
+                            tokenDao.insertAll(
+                                tokens.map { t ->
+                                    com.lomo.data.local.entity
+                                        .MemoTokenEntity(t, it.id)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -379,12 +390,21 @@ class MemoSynchronizer
             val entity = MemoEntity.fromDomain(newMemo)
             dao.insertMemo(entity)
             updateMemoTags(entity)
-            val tokenizedContent = com.lomo.data.util.SearchTokenizer.tokenize(entity.content)
+            val tokenizedContent =
+                com.lomo.data.util.SearchTokenizer
+                    .tokenize(entity.content)
             dao.insertMemoFts(MemoFtsEntity(entity.id, tokenizedContent))
             tokenDao.deleteByMemoId(entity.id)
             run {
                 val tokens = tokenizedContent.split(' ').filter { it.isNotBlank() }
-                if (tokens.isNotEmpty()) tokenDao.insertAll(tokens.map { t -> com.lomo.data.local.entity.MemoTokenEntity(t, entity.id) })
+                if (tokens.isNotEmpty()) {
+                    tokenDao.insertAll(
+                        tokens.map { t ->
+                            com.lomo.data.local.entity
+                                .MemoTokenEntity(t, entity.id)
+                        },
+                    )
+                }
             }
         }
 
@@ -472,7 +492,14 @@ class MemoSynchronizer
                     tokenDao.deleteByMemoId(finalEntity.id)
                     run {
                         val tokens = tokenizedContent.split(' ').filter { it.isNotBlank() }
-                        if (tokens.isNotEmpty()) tokenDao.insertAll(tokens.map { t -> com.lomo.data.local.entity.MemoTokenEntity(t, finalEntity.id) })
+                        if (tokens.isNotEmpty()) {
+                            tokenDao.insertAll(
+                                tokens.map { t ->
+                                    com.lomo.data.local.entity
+                                        .MemoTokenEntity(t, finalEntity.id)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -601,7 +628,14 @@ class MemoSynchronizer
                         tokenDao.deleteByMemoId(entity.id)
                         run {
                             val tokens = tokenized.split(' ').filter { it.isNotBlank() }
-                            if (tokens.isNotEmpty()) tokenDao.insertAll(tokens.map { t -> com.lomo.data.local.entity.MemoTokenEntity(t, entity.id) })
+                            if (tokens.isNotEmpty()) {
+                                tokenDao.insertAll(
+                                    tokens.map { t ->
+                                        com.lomo.data.local.entity
+                                            .MemoTokenEntity(t, entity.id)
+                                    },
+                                )
+                            }
                         }
                     } else {
                         Timber.e("restoreMemo: Failed to find memo block in trash file for ${memo.id}")

@@ -10,13 +10,19 @@ import kotlinx.coroutines.flow.Flow
 interface MediaRepository {
     // Images
     suspend fun saveImage(uri: Uri): String
+
     suspend fun deleteImage(filename: String)
+
     fun getImageUriMap(): Flow<Map<String, String>>
+
     suspend fun syncImageCache()
+
     suspend fun createDefaultImageDirectory(): String?
 
     // Voice
     suspend fun createVoiceFile(filename: String): Uri
+
     suspend fun deleteVoiceFile(filename: String)
+
     suspend fun createDefaultVoiceDirectory(): String?
 }
