@@ -33,7 +33,9 @@ import kotlin.math.ceil
  */
 object ShareUtils {
     private const val MAX_SHARE_CONTENT_CHARS = 4000
-    private val markdownTextProcessor = com.lomo.data.util.MemoTextProcessor()
+    private val markdownTextProcessor =
+        com.lomo.data.util
+            .MemoTextProcessor()
 
     private data class ShareCardConfig(
         val style: String,
@@ -183,6 +185,7 @@ object ShareUtils {
     ): Bitmap {
         val resources = context.resources
         val density = resources.displayMetrics.density
+
         fun sp(value: Float): Float =
             TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP,
@@ -518,9 +521,10 @@ object ShareUtils {
         var stripped = content
         explicitTags.forEach { tag ->
             val escaped = Regex.escape(tag)
-            stripped = stripped.replace(Regex("(^|\\s)#$escaped(?=\\s|$)")) { match ->
-                if (match.value.startsWith(" ") || match.value.startsWith("\t")) " " else ""
-            }
+            stripped =
+                stripped.replace(Regex("(^|\\s)#$escaped(?=\\s|$)")) { match ->
+                    if (match.value.startsWith(" ") || match.value.startsWith("\t")) " " else ""
+                }
         }
 
         // Fallback generic cleanup in case tags were parsed from content rather than sourceTags.
@@ -625,7 +629,7 @@ object ShareUtils {
 
     private fun resolvePalette(style: String): ShareCardPalette =
         when (style) {
-            "clean" ->
+            "clean" -> {
                 ShareCardPalette(
                     bgStart = 0xFFF6F8FF.toInt(),
                     bgEnd = 0xFFE7EEFF.toInt(),
@@ -640,7 +644,9 @@ object ShareUtils {
                     surfaceHighlightStart = 0x26FFFFFF,
                     surfaceHighlightEnd = 0x00FFFFFF,
                 )
-            "dark" ->
+            }
+
+            "dark" -> {
                 ShareCardPalette(
                     bgStart = 0xFF111722.toInt(),
                     bgEnd = 0xFF0B1118.toInt(),
@@ -655,7 +661,9 @@ object ShareUtils {
                     surfaceHighlightStart = 0x16CFE1FF,
                     surfaceHighlightEnd = 0x00CFE1FF,
                 )
-            else ->
+            }
+
+            else -> {
                 ShareCardPalette(
                     bgStart = 0xFFFFF6E5.toInt(),
                     bgEnd = 0xFFF9E5C1.toInt(),
@@ -670,5 +678,6 @@ object ShareUtils {
                     surfaceHighlightStart = 0x1AFFFFFF,
                     surfaceHighlightEnd = 0x00FFFFFF,
                 )
+            }
         }
 }

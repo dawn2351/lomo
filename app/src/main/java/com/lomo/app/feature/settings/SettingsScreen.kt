@@ -117,9 +117,15 @@ fun SettingsScreen(
         )
     val shareCardStyleLabels =
         mapOf(
-            "warm" to androidx.compose.ui.res.stringResource(com.lomo.app.R.string.share_card_style_warm),
-            "clean" to androidx.compose.ui.res.stringResource(com.lomo.app.R.string.share_card_style_clean),
-            "dark" to androidx.compose.ui.res.stringResource(com.lomo.app.R.string.share_card_style_dark),
+            "warm" to
+                androidx.compose.ui.res
+                    .stringResource(com.lomo.app.R.string.share_card_style_warm),
+            "clean" to
+                androidx.compose.ui.res
+                    .stringResource(com.lomo.app.R.string.share_card_style_clean),
+            "dark" to
+                androidx.compose.ui.res
+                    .stringResource(com.lomo.app.R.string.share_card_style_dark),
         )
     val languageLabels =
         mapOf(

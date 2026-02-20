@@ -66,12 +66,20 @@ class TagFilterViewModel
         val shareCardShowTime: StateFlow<Boolean> =
             settingsRepository
                 .isShareCardShowTimeEnabled()
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME)
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME,
+                )
 
         val shareCardShowBrand: StateFlow<Boolean> =
             settingsRepository
                 .isShareCardShowBrandEnabled()
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND)
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND,
+                )
 
         val activeDayCount: StateFlow<Int> =
             memoRepository

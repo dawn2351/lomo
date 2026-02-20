@@ -250,8 +250,7 @@ class NsdDiscoveryService(
         )
     }
 
-    private fun callbackKey(serviceInfo: NsdServiceInfo): String =
-        "${serviceInfo.serviceName}|${serviceInfo.serviceType}"
+    private fun callbackKey(serviceInfo: NsdServiceInfo): String = "${serviceInfo.serviceName}|${serviceInfo.serviceType}"
 
     @Suppress("DEPRECATION")
     private fun handleResolvedService(info: NsdServiceInfo) {
