@@ -185,8 +185,14 @@ class MemoRepositoryImpl
                             }
                         }
                     if (hasCjk) {
-                        // 简单 AND 拆词：按空白切分后取前 5 个词的前缀匹配
-                        val tokens = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }.take(5)
+                        // CJK 查询词也需要经过同样分词，否则“苏格拉底”会被当成单一 token 导致命中失败。
+                        val tokens =
+                            com.lomo.data.util.SearchTokenizer
+                                .tokenize(trimmed)
+                                .split(Regex("\\s+"))
+                                .filter { it.isNotBlank() }
+                                .distinct()
+                                .take(5)
                         if (tokens.isEmpty()) dao.searchMemos(trimmed) else tokenDao.searchByTokensAnd(tokens)
                     } else {
                         dao.searchMemos(trimmed)
