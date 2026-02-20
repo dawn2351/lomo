@@ -38,13 +38,13 @@ object PreferenceKeys {
     // Default values
     object Defaults {
         const val DATE_FORMAT = "yyyy-MM-dd"
-        const val TIME_FORMAT = "HH:mm"
+        const val TIME_FORMAT = "HH:mm:ss"
         const val HAPTIC_FEEDBACK_ENABLED = true
         const val CHECK_UPDATES_ON_STARTUP = true
         const val SHOW_INPUT_HINTS = true
         const val LAN_SHARE_E2E_ENABLED = true
         const val THEME_MODE = "system"
-        const val SHARE_CARD_STYLE = "warm"
+        const val SHARE_CARD_STYLE = "clean"
         const val SHARE_CARD_SHOW_TIME = true
         const val SHARE_CARD_SHOW_BRAND = true
 
