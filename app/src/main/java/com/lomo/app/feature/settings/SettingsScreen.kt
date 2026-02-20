@@ -86,6 +86,8 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val checkUpdates by viewModel.checkUpdatesOnStartup.collectAsStateWithLifecycle()
     val showInputHints by viewModel.showInputHints.collectAsStateWithLifecycle()
+    val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
+    val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
@@ -96,6 +98,7 @@ fun SettingsScreen(
     var showFilenameDialog by remember { mutableStateOf(false) }
     var showTimestampDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showShareCardStyleDialog by remember { mutableStateOf(false) }
 
     val dateFormats = listOf("yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy", "yyyy/MM/dd")
     val timeFormats = listOf("HH:mm", "hh:mm a", "HH:mm:ss", "hh:mm:ss a")
@@ -111,6 +114,12 @@ fun SettingsScreen(
             "dark" to
                 androidx.compose.ui.res
                     .stringResource(com.lomo.app.R.string.settings_dark_mode),
+        )
+    val shareCardStyleLabels =
+        mapOf(
+            "warm" to androidx.compose.ui.res.stringResource(com.lomo.app.R.string.share_card_style_warm),
+            "clean" to androidx.compose.ui.res.stringResource(com.lomo.app.R.string.share_card_style_clean),
+            "dark" to androidx.compose.ui.res.stringResource(com.lomo.app.R.string.share_card_style_dark),
         )
     val languageLabels =
         mapOf(
@@ -366,6 +375,33 @@ fun SettingsScreen(
                 SettingsGroup(
                     title =
                         androidx.compose.ui.res
+                            .stringResource(com.lomo.app.R.string.settings_group_share_card),
+                ) {
+                    PreferenceItem(
+                        title =
+                            androidx.compose.ui.res
+                                .stringResource(com.lomo.app.R.string.settings_share_card_style),
+                        subtitle = shareCardStyleLabels[shareCardStyle] ?: shareCardStyle,
+                        icon = Icons.Outlined.Description,
+                        onClick = { showShareCardStyleDialog = true },
+                    )
+
+                    SwitchPreferenceItem(
+                        title =
+                            androidx.compose.ui.res
+                                .stringResource(com.lomo.app.R.string.settings_share_card_show_time),
+                        subtitle =
+                            androidx.compose.ui.res
+                                .stringResource(com.lomo.app.R.string.settings_share_card_show_time_subtitle),
+                        icon = Icons.Outlined.Schedule,
+                        checked = shareCardShowTime,
+                        onCheckedChange = { viewModel.updateShareCardShowTime(it) },
+                    )
+                }
+
+                SettingsGroup(
+                    title =
+                        androidx.compose.ui.res
                             .stringResource(com.lomo.app.R.string.settings_group_interaction),
                 ) {
                     val hapticEnabledVal by
@@ -542,6 +578,22 @@ fun SettingsScreen(
                 viewModel.updateStorageTimestampFormat(it)
                 showTimestampDialog = false
             },
+        )
+    }
+
+    if (showShareCardStyleDialog) {
+        SelectionDialog(
+            title =
+                androidx.compose.ui.res
+                    .stringResource(com.lomo.app.R.string.settings_select_share_card_style),
+            options = listOf("warm", "clean", "dark"),
+            currentSelection = shareCardStyle,
+            onDismiss = { showShareCardStyleDialog = false },
+            onSelect = {
+                viewModel.updateShareCardStyle(it)
+                showShareCardStyleDialog = false
+            },
+            labelProvider = { shareCardStyleLabels[it] ?: it },
         )
     }
 }

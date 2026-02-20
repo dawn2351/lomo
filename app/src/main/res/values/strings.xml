@@ -44,6 +44,23 @@
     <string name="settings_select_time_format">Select Time Format</string>
     <string name="settings_select_filename_format">Select Filename Format</string>
     <string name="settings_select_timestamp_format">Select Timestamp Format</string>
+    <string name="settings_select_share_card_style">Select Share Card Style</string>
+    <string name="settings_group_share_card">Share Card</string>
+    <string name="settings_share_card_style">Card Style</string>
+    <string name="settings_share_card_show_time">Show timestamp</string>
+    <string name="settings_share_card_show_time_subtitle">Display sharing time on the card image</string>
+    <string name="settings_share_card_show_brand">Show app signature</string>
+    <string name="settings_share_card_show_brand_subtitle">Display Lomo signature on the card image</string>
+    <string name="share_card_style_warm">Warm Note</string>
+    <string name="share_card_style_clean">Clean Card</string>
+    <string name="share_card_style_dark">Dark Slate</string>
+    <plurals name="share_card_recorded_days">
+        <item quantity="one">Recorded %1$d day</item>
+        <item quantity="other">Recorded %1$d days</item>
+    </plurals>
+    <string name="share_card_placeholder_image">[Image]</string>
+    <string name="share_card_placeholder_image_named">[Image: %1$s]</string>
+    <string name="share_card_placeholder_audio">[Audio]</string>
 
     <string name="back">Back</string>
 

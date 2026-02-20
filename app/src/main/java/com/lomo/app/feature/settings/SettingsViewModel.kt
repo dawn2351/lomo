@@ -114,6 +114,33 @@ class SettingsViewModel
                     PreferenceKeys.Defaults.CHECK_UPDATES_ON_STARTUP,
                 )
 
+        val shareCardStyle: StateFlow<String> =
+            settings
+                .getShareCardStyle()
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    PreferenceKeys.Defaults.SHARE_CARD_STYLE,
+                )
+
+        val shareCardShowTime: StateFlow<Boolean> =
+            settings
+                .isShareCardShowTimeEnabled()
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME,
+                )
+
+        val shareCardShowBrand: StateFlow<Boolean> =
+            settings
+                .isShareCardShowBrandEnabled()
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND,
+                )
+
         fun updateRootDirectory(path: String) {
             viewModelScope.launch { settings.setRootDirectory(path) }
         }
@@ -168,6 +195,18 @@ class SettingsViewModel
 
         fun updateCheckUpdatesOnStartup(enabled: Boolean) {
             viewModelScope.launch { settings.setCheckUpdatesOnStartup(enabled) }
+        }
+
+        fun updateShareCardStyle(style: String) {
+            viewModelScope.launch { settings.setShareCardStyle(style) }
+        }
+
+        fun updateShareCardShowTime(enabled: Boolean) {
+            viewModelScope.launch { settings.setShareCardShowTime(enabled) }
+        }
+
+        fun updateShareCardShowBrand(enabled: Boolean) {
+            viewModelScope.launch { settings.setShareCardShowBrand(enabled) }
         }
 
         fun autoDetectFormats() {

@@ -11,8 +11,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 
 @HiltViewModel
@@ -48,6 +51,60 @@ class DailyReviewViewModel
                         kotlinx.coroutines.flow.SharingStarted
                             .WhileSubscribed(5000),
                     initialValue = com.lomo.data.util.PreferenceKeys.Defaults.TIME_FORMAT,
+                )
+
+        val shareCardStyle: StateFlow<String> =
+            settingsRepository
+                .getShareCardStyle()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_STYLE,
+                )
+
+        val shareCardShowTime: StateFlow<Boolean> =
+            settingsRepository
+                .isShareCardShowTimeEnabled()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME,
+                )
+
+        val shareCardShowBrand: StateFlow<Boolean> =
+            settingsRepository
+                .isShareCardShowBrandEnabled()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND,
+                )
+
+        val activeDayCount: StateFlow<Int> =
+            repository
+                .getAllTimestamps()
+                .map { timestamps ->
+                    timestamps
+                        .asSequence()
+                        .map {
+                            Instant
+                                .ofEpochMilli(it)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        }.distinct()
+                        .count()
+                }.stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = 0,
                 )
 
         init {

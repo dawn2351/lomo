@@ -30,6 +30,9 @@ object PreferenceKeys {
     const val LAN_SHARE_PAIRING_CODE_PLAIN = "lan_share_pairing_code_plain"
     const val LAN_SHARE_E2E_ENABLED = "lan_share_e2e_enabled"
     const val LAN_SHARE_DEVICE_NAME = "lan_share_device_name"
+    const val SHARE_CARD_STYLE = "share_card_style"
+    const val SHARE_CARD_SHOW_TIME = "share_card_show_time"
+    const val SHARE_CARD_SHOW_BRAND = "share_card_show_brand"
     const val LAST_APP_VERSION = "last_app_version"
 
     // Default values
@@ -41,6 +44,9 @@ object PreferenceKeys {
         const val SHOW_INPUT_HINTS = true
         const val LAN_SHARE_E2E_ENABLED = true
         const val THEME_MODE = "system"
+        const val SHARE_CARD_STYLE = "warm"
+        const val SHARE_CARD_SHOW_TIME = true
+        const val SHARE_CARD_SHOW_BRAND = true
 
         // Storage Defaults
         const val STORAGE_FILENAME_FORMAT = "yyyy_MM_dd"

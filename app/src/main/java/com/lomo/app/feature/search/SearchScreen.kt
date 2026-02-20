@@ -78,6 +78,9 @@ fun SearchScreen(
     val pagedResults = viewModel.pagedResults.collectAsLazyPagingItems()
     val dateFormat by viewModel.dateFormat.collectAsStateWithLifecycle()
     val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
+    val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
+    val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
+    val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val haptic = com.lomo.ui.util.LocalAppHapticFeedback.current
 
     // Track deleting items for "fade out then delete" animation sequence
@@ -121,9 +124,15 @@ fun SearchScreen(
             }
         },
         onShare = { state ->
-            com.lomo.app.util.ShareUtils.shareMemoText(
+            val memo = state.memo as? com.lomo.domain.model.Memo
+            com.lomo.app.util.ShareUtils.shareMemoAsImage(
                 context = context,
                 content = state.content,
+                style = shareCardStyle,
+                showTime = shareCardShowTime,
+                timestamp = memo?.timestamp,
+                tags = memo?.tags.orEmpty(),
+                activeDayCount = activeDayCount,
             )
         },
         onLanShare = { state ->

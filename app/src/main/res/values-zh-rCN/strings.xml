@@ -45,6 +45,23 @@
     <string name="settings_select_time_format">选择时间格式</string>
     <string name="settings_select_filename_format">选择文件名格式</string>
     <string name="settings_select_timestamp_format">选择时间戳格式</string>
+    <string name="settings_select_share_card_style">选择分享卡片样式</string>
+    <string name="settings_group_share_card">分享卡片</string>
+    <string name="settings_share_card_style">卡片样式</string>
+    <string name="settings_share_card_show_time">显示时间</string>
+    <string name="settings_share_card_show_time_subtitle">在分享图片上显示分享时间</string>
+    <string name="settings_share_card_show_brand">显示应用署名</string>
+    <string name="settings_share_card_show_brand_subtitle">在分享图片上显示 Lomo 署名</string>
+    <string name="share_card_style_warm">暖色便签</string>
+    <string name="share_card_style_clean">简洁卡片</string>
+    <string name="share_card_style_dark">深色石板</string>
+    <plurals name="share_card_recorded_days">
+        <item quantity="one">累计记录 %1$d 天</item>
+        <item quantity="other">累计记录 %1$d 天</item>
+    </plurals>
+    <string name="share_card_placeholder_image">[图片]</string>
+    <string name="share_card_placeholder_image_named">[图片: %1$s]</string>
+    <string name="share_card_placeholder_audio">[音频]</string>
 
     <string name="back">返回</string>
 

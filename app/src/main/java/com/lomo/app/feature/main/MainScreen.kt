@@ -124,6 +124,9 @@ fun MainScreen(
     val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
     val hapticEnabled by viewModel.hapticFeedbackEnabled.collectAsStateWithLifecycle()
     val showInputHints by viewModel.showInputHints.collectAsStateWithLifecycle()
+    val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
+    val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
+    val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
 
     // Recording State (from RecordingViewModel)
     val isRecording by recordingViewModel.isRecording.collectAsStateWithLifecycle()
@@ -242,9 +245,15 @@ fun MainScreen(
             }
         },
         onShare = { state ->
-            com.lomo.app.util.ShareUtils.shareMemoText(
+            val memo = state.memo as? com.lomo.domain.model.Memo
+            com.lomo.app.util.ShareUtils.shareMemoAsImage(
                 context = context,
                 content = state.content,
+                style = shareCardStyle,
+                showTime = shareCardShowTime,
+                timestamp = memo?.timestamp,
+                tags = memo?.tags.orEmpty(),
+                activeDayCount = activeDayCount,
             )
         },
         onLanShare = { state ->

@@ -63,4 +63,17 @@ interface SettingsRepository {
     suspend fun setLanSharePairingCode(pairingCode: String)
 
     suspend fun clearLanSharePairingCode()
+
+    // Share card style
+    fun getShareCardStyle(): Flow<String>
+
+    suspend fun setShareCardStyle(style: String)
+
+    fun isShareCardShowTimeEnabled(): Flow<Boolean>
+
+    suspend fun setShareCardShowTime(enabled: Boolean)
+
+    fun isShareCardShowBrandEnabled(): Flow<Boolean>
+
+    suspend fun setShareCardShowBrand(enabled: Boolean)
 }

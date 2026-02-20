@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 
 // SearchUiState removed - using PagingData direct flow
@@ -58,6 +60,36 @@ class SearchViewModel
             settingsRepository
                 .getTimeFormat()
                 .stateInViewModel(viewModelScope, com.lomo.data.util.PreferenceKeys.Defaults.TIME_FORMAT)
+
+        val shareCardStyle: StateFlow<String> =
+            settingsRepository
+                .getShareCardStyle()
+                .stateInViewModel(viewModelScope, com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_STYLE)
+
+        val shareCardShowTime: StateFlow<Boolean> =
+            settingsRepository
+                .isShareCardShowTimeEnabled()
+                .stateInViewModel(viewModelScope, com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME)
+
+        val shareCardShowBrand: StateFlow<Boolean> =
+            settingsRepository
+                .isShareCardShowBrandEnabled()
+                .stateInViewModel(viewModelScope, com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND)
+
+        val activeDayCount: StateFlow<Int> =
+            repository
+                .getAllTimestamps()
+                .map { timestamps ->
+                    timestamps
+                        .asSequence()
+                        .map {
+                            Instant
+                                .ofEpochMilli(it)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        }.distinct()
+                        .count()
+                }.stateInViewModel(viewModelScope, 0)
 
         // Optimistic UI: shared manager handles the two-phase fade-then-collapse pattern
         private val mutations = OptimisticMutationManager(viewModelScope)

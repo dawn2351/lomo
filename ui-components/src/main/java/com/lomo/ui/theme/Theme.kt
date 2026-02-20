@@ -15,6 +15,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -84,6 +85,7 @@ fun LomoTheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    val context = LocalContext.current
     val darkTheme =
         when (themeMode) {
             "light" -> false
@@ -94,7 +96,6 @@ fun LomoTheme(
     val targetColorScheme =
         when {
             dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                val context = LocalContext.current
                 if (darkTheme) {
                     dynamicDarkColorScheme(context)
                 } else {
@@ -112,6 +113,13 @@ fun LomoTheme(
         }
 
     val animatedColorScheme = animateColorSchemeAsState(targetColorScheme)
+    val systemFontWeightAdjustment =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.resources.configuration.fontWeightAdjustment
+        } else {
+            0
+        }
+    val typography = remember(systemFontWeightAdjustment) { Typography.withSystemFontWeightAdjustment(systemFontWeightAdjustment) }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -123,7 +131,7 @@ fun LomoTheme(
         }
     }
 
-    MaterialTheme(colorScheme = animatedColorScheme, typography = Typography, shapes = Shapes, content = content)
+    MaterialTheme(colorScheme = animatedColorScheme, typography = typography, shapes = Shapes, content = content)
 }
 
 @Composable

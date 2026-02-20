@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 
 @HiltViewModel
@@ -55,6 +57,36 @@ class TagFilterViewModel
             settingsRepository
                 .getTimeFormat()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.lomo.data.util.PreferenceKeys.Defaults.TIME_FORMAT)
+
+        val shareCardStyle: StateFlow<String> =
+            settingsRepository
+                .getShareCardStyle()
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_STYLE)
+
+        val shareCardShowTime: StateFlow<Boolean> =
+            settingsRepository
+                .isShareCardShowTimeEnabled()
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME)
+
+        val shareCardShowBrand: StateFlow<Boolean> =
+            settingsRepository
+                .isShareCardShowBrandEnabled()
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND)
+
+        val activeDayCount: StateFlow<Int> =
+            memoRepository
+                .getAllTimestamps()
+                .map { timestamps ->
+                    timestamps
+                        .asSequence()
+                        .map {
+                            Instant
+                                .ofEpochMilli(it)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        }.distinct()
+                        .count()
+                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
         // Optimistic UI: Pending mutations
         private val _pendingMutations = MutableStateFlow<Map<String, Mutation>>(emptyMap())

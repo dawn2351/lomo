@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 
 @HiltViewModel
@@ -543,6 +545,27 @@ class MainViewModel
                     initialValue = com.lomo.data.util.PreferenceKeys.Defaults.TIME_FORMAT,
                 )
 
+        val activeDayCount: StateFlow<Int> =
+            repository
+                .getAllTimestamps()
+                .map { timestamps ->
+                    timestamps
+                        .asSequence()
+                        .map {
+                            Instant
+                                .ofEpochMilli(it)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        }.distinct()
+                        .count()
+                }.stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = 0,
+                )
+
         val hapticFeedbackEnabled: StateFlow<Boolean> =
             settingsRepository
                 .isHapticFeedbackEnabled()
@@ -565,6 +588,39 @@ class MainViewModel
                         kotlinx.coroutines.flow.SharingStarted
                             .WhileSubscribed(5000),
                     initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHOW_INPUT_HINTS,
+                )
+
+        val shareCardStyle: StateFlow<String> =
+            settingsRepository
+                .getShareCardStyle()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_STYLE,
+                )
+
+        val shareCardShowTime: StateFlow<Boolean> =
+            settingsRepository
+                .isShareCardShowTimeEnabled()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME,
+                )
+
+        val shareCardShowBrand: StateFlow<Boolean> =
+            settingsRepository
+                .isShareCardShowBrandEnabled()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND,
                 )
 
         val themeMode: StateFlow<String> =

@@ -345,6 +345,24 @@ class MemoRepositoryImpl
             dataStore.updateLanSharePairingKeyHex(null)
         }
 
+        override fun getShareCardStyle(): Flow<String> = dataStore.shareCardStyle
+
+        override suspend fun setShareCardStyle(style: String) {
+            dataStore.updateShareCardStyle(style)
+        }
+
+        override fun isShareCardShowTimeEnabled(): Flow<Boolean> = dataStore.shareCardShowTime
+
+        override suspend fun setShareCardShowTime(enabled: Boolean) {
+            dataStore.updateShareCardShowTime(enabled)
+        }
+
+        override fun isShareCardShowBrandEnabled(): Flow<Boolean> = dataStore.shareCardShowBrand
+
+        override suspend fun setShareCardShowBrand(enabled: Boolean) {
+            dataStore.updateShareCardShowBrand(enabled)
+        }
+
         override fun getStorageFilenameFormat(): Flow<String> = dataStore.storageFilenameFormat
 
         override suspend fun setStorageFilenameFormat(format: String) {

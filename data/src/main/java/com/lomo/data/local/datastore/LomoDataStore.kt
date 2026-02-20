@@ -58,6 +58,9 @@ class LomoDataStore
             val LAN_SHARE_PAIRING_CODE_PLAIN = stringPreferencesKey(PreferenceKeys.LAN_SHARE_PAIRING_CODE_PLAIN)
             val LAN_SHARE_E2E_ENABLED = booleanPreferencesKey(PreferenceKeys.LAN_SHARE_E2E_ENABLED)
             val LAN_SHARE_DEVICE_NAME = stringPreferencesKey(PreferenceKeys.LAN_SHARE_DEVICE_NAME)
+            val SHARE_CARD_STYLE = stringPreferencesKey(PreferenceKeys.SHARE_CARD_STYLE)
+            val SHARE_CARD_SHOW_TIME = booleanPreferencesKey(PreferenceKeys.SHARE_CARD_SHOW_TIME)
+            val SHARE_CARD_SHOW_BRAND = booleanPreferencesKey(PreferenceKeys.SHARE_CARD_SHOW_BRAND)
             val LAST_APP_VERSION = stringPreferencesKey(PreferenceKeys.LAST_APP_VERSION)
         }
 
@@ -251,6 +254,48 @@ class LomoDataStore
                     emit(null)
                 }
 
+        val shareCardStyle: Flow<String> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.SHARE_CARD_STYLE]
+                        ?: PreferenceKeys.Defaults.SHARE_CARD_STYLE
+                }.catch { e ->
+                    timber.log.Timber.e(
+                        "LomoDataStore",
+                        "Error in shareCardStyle flow",
+                        e,
+                    )
+                    emit(PreferenceKeys.Defaults.SHARE_CARD_STYLE)
+                }
+
+        val shareCardShowTime: Flow<Boolean> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.SHARE_CARD_SHOW_TIME]
+                        ?: PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME
+                }.catch { e ->
+                    timber.log.Timber.e(
+                        "LomoDataStore",
+                        "Error in shareCardShowTime flow",
+                        e,
+                    )
+                    emit(PreferenceKeys.Defaults.SHARE_CARD_SHOW_TIME)
+                }
+
+        val shareCardShowBrand: Flow<Boolean> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.SHARE_CARD_SHOW_BRAND]
+                        ?: PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND
+                }.catch { e ->
+                    timber.log.Timber.e(
+                        "LomoDataStore",
+                        "Error in shareCardShowBrand flow",
+                        e,
+                    )
+                    emit(PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND)
+                }
+
         // Update functions
         suspend fun updateRootUri(uri: String?) {
             dataStore.edit { prefs ->
@@ -380,6 +425,24 @@ class LomoDataStore
                 } else {
                     prefs[Keys.LAN_SHARE_DEVICE_NAME] = name
                 }
+            }
+        }
+
+        suspend fun updateShareCardStyle(style: String) {
+            dataStore.edit { prefs ->
+                prefs[Keys.SHARE_CARD_STYLE] = style
+            }
+        }
+
+        suspend fun updateShareCardShowTime(enabled: Boolean) {
+            dataStore.edit { prefs ->
+                prefs[Keys.SHARE_CARD_SHOW_TIME] = enabled
+            }
+        }
+
+        suspend fun updateShareCardShowBrand(enabled: Boolean) {
+            dataStore.edit { prefs ->
+                prefs[Keys.SHARE_CARD_SHOW_BRAND] = enabled
             }
         }
 
