@@ -57,6 +57,10 @@ interface SettingsRepository {
 
     suspend fun setShowInputHints(enabled: Boolean)
 
+    fun isDoubleTapEditEnabled(): Flow<Boolean>
+
+    suspend fun setDoubleTapEditEnabled(enabled: Boolean)
+
     // LAN share pairing
     fun isLanSharePairingConfigured(): Flow<Boolean>
 

@@ -79,6 +79,7 @@ fun TagFilterScreen(
     val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
     val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
     val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
+    val doubleTapEditEnabled by viewModel.doubleTapEditEnabled.collectAsStateWithLifecycle()
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val imageDirectory by viewModel.imageDir.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -352,6 +353,22 @@ fun TagFilterScreen(
                                                 dateFormat = dateFormat,
                                                 timeFormat = timeFormat,
                                                 tags = uiModel.tags,
+                                                onDoubleClick =
+                                                    if (doubleTapEditEnabled) {
+                                                        {
+                                                            editingMemo = memo
+                                                            inputText =
+                                                                androidx.compose.ui.text.input
+                                                                    .TextFieldValue(
+                                                                        memo.content,
+                                                                        androidx.compose.ui.text
+                                                                            .TextRange(memo.content.length),
+                                                                    )
+                                                            showInputSheet = true
+                                                        }
+                                                    } else {
+                                                        null
+                                                    },
                                                 onImageClick = onNavigateToImage,
                                                 onMenuClick = {
                                                     showMenu(

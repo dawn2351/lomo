@@ -59,6 +59,7 @@ fun DailyReviewScreen(
     val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
     val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
     val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
+    val doubleTapEditEnabled by viewModel.doubleTapEditEnabled.collectAsStateWithLifecycle()
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -228,6 +229,20 @@ fun DailyReviewScreen(
                                                 dateFormat = dateFormat,
                                                 timeFormat = timeFormat,
                                                 tags = memo.tags,
+                                                onDoubleClick =
+                                                    if (doubleTapEditEnabled) {
+                                                        {
+                                                            editingMemo = memo.memo
+                                                            inputText =
+                                                                TextFieldValue(
+                                                                    memo.memo.content,
+                                                                    TextRange(memo.memo.content.length),
+                                                                )
+                                                            showInputSheet = true
+                                                        }
+                                                    } else {
+                                                        null
+                                                    },
                                                 onImageClick = onNavigateToImage,
                                                 onMenuClick = {
                                                     showMenu(

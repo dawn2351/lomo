@@ -1,13 +1,18 @@
 package com.lomo.app.feature.main
 
-import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateBottomPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -59,6 +64,8 @@ internal fun MemoListContent(
     timeFormat: String,
     todoOverrides: Map<String, Map<Int, Boolean>>,
     onMemoClick: (String, String) -> Unit,
+    onMemoDoubleClick: (Memo) -> Unit = {},
+    doubleTapEditEnabled: Boolean = true,
     onTagClick: (String) -> Unit,
     onImageClick: (String) -> Unit,
     onShowMemoMenu: (MemoUiModel) -> Unit,
@@ -226,6 +233,8 @@ internal fun MemoListContent(
                                 timeFormat = timeFormat,
                                 todoOverrides = todoOverrides,
                                 onMemoClick = onMemoClick,
+                                onMemoDoubleClick = onMemoDoubleClick,
+                                doubleTapEditEnabled = doubleTapEditEnabled,
                                 onTagClick = onTagClick,
                                 onImageClick = onImageClick,
                                 onShowMemoMenu = onShowMemoMenu,
@@ -246,6 +255,8 @@ internal fun MemoItemContent(
     timeFormat: String,
     todoOverrides: Map<String, Map<Int, Boolean>>,
     onMemoClick: (String, String) -> Unit,
+    onMemoDoubleClick: (Memo) -> Unit,
+    doubleTapEditEnabled: Boolean,
     onTagClick: (String) -> Unit,
     onImageClick: (String) -> Unit,
     onShowMemoMenu: (MemoUiModel) -> Unit,
@@ -267,6 +278,12 @@ internal fun MemoItemContent(
         todoOverrides = todoOverrides[uiModel.memo.id] ?: emptyMap(),
         modifier = modifier,
         onClick = { onMemoClick(uiModel.memo.id, uiModel.memo.content) },
+        onDoubleClick =
+            if (doubleTapEditEnabled) {
+                { onMemoDoubleClick(uiModel.memo) }
+            } else {
+                null
+            },
         onTagClick = onTagClick,
         onTodoClick = stableTodoClick,
         onImageClick = onImageClick,

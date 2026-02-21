@@ -332,6 +332,12 @@ class MemoRepositoryImpl
             dataStore.updateShowInputHints(enabled)
         }
 
+        override fun isDoubleTapEditEnabled(): Flow<Boolean> = dataStore.doubleTapEditEnabled
+
+        override suspend fun setDoubleTapEditEnabled(enabled: Boolean) {
+            dataStore.updateDoubleTapEditEnabled(enabled)
+        }
+
         override fun isLanSharePairingConfigured(): Flow<Boolean> = dataStore.lanSharePairingKeyHex.map { ShareAuthUtils.isValidKeyHex(it) }
 
         override suspend fun setLanSharePairingCode(pairingCode: String) {

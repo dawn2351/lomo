@@ -57,6 +57,7 @@ fun MemoCard(
     dateFormat: String = "yyyy-MM-dd",
     timeFormat: String = "HH:mm",
     onClick: () -> Unit = {},
+    onDoubleClick: (() -> Unit)? = null,
     onMenuClick: (() -> Unit)? = null,
     onTagClick: (String) -> Unit = {},
     onTodoClick: ((Int, Boolean) -> Unit)? = null,
@@ -94,6 +95,13 @@ fun MemoCard(
                             haptic.medium()
                             onClick()
                         },
+                        onDoubleClick =
+                            onDoubleClick?.let { doubleClick ->
+                                {
+                                    haptic.medium()
+                                    doubleClick()
+                                }
+                            },
                         onLongClick =
                             onMenuClick?.let { menuClick ->
                                 {

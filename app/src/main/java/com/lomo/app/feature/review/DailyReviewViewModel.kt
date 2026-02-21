@@ -87,6 +87,17 @@ class DailyReviewViewModel
                     initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND,
                 )
 
+        val doubleTapEditEnabled: StateFlow<Boolean> =
+            settingsRepository
+                .isDoubleTapEditEnabled()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.DOUBLE_TAP_EDIT_ENABLED,
+                )
+
         val activeDayCount: StateFlow<Int> =
             repository
                 .getAllTimestamps()

@@ -54,6 +54,7 @@ class LomoDataStore
             val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey(PreferenceKeys.HAPTIC_FEEDBACK_ENABLED)
             val CHECK_UPDATES_ON_STARTUP = booleanPreferencesKey(PreferenceKeys.CHECK_UPDATES_ON_STARTUP)
             val SHOW_INPUT_HINTS = booleanPreferencesKey(PreferenceKeys.SHOW_INPUT_HINTS)
+            val DOUBLE_TAP_EDIT_ENABLED = booleanPreferencesKey(PreferenceKeys.DOUBLE_TAP_EDIT_ENABLED)
             val LAN_SHARE_PAIRING_KEY_HEX = stringPreferencesKey(PreferenceKeys.LAN_SHARE_PAIRING_KEY_HEX)
             val LAN_SHARE_PAIRING_CODE_PLAIN = stringPreferencesKey(PreferenceKeys.LAN_SHARE_PAIRING_CODE_PLAIN)
             val LAN_SHARE_E2E_ENABLED = booleanPreferencesKey(PreferenceKeys.LAN_SHARE_E2E_ENABLED)
@@ -202,6 +203,20 @@ class LomoDataStore
                         e,
                     )
                     emit(PreferenceKeys.Defaults.SHOW_INPUT_HINTS)
+                }
+
+        val doubleTapEditEnabled: Flow<Boolean> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.DOUBLE_TAP_EDIT_ENABLED]
+                        ?: PreferenceKeys.Defaults.DOUBLE_TAP_EDIT_ENABLED
+                }.catch { e ->
+                    timber.log.Timber.e(
+                        "LomoDataStore",
+                        "Error in doubleTapEditEnabled flow",
+                        e,
+                    )
+                    emit(PreferenceKeys.Defaults.DOUBLE_TAP_EDIT_ENABLED)
                 }
 
         val lanSharePairingKeyHex: Flow<String?> =
@@ -390,6 +405,10 @@ class LomoDataStore
 
         suspend fun updateShowInputHints(enabled: Boolean) {
             dataStore.edit { prefs -> prefs[Keys.SHOW_INPUT_HINTS] = enabled }
+        }
+
+        suspend fun updateDoubleTapEditEnabled(enabled: Boolean) {
+            dataStore.edit { prefs -> prefs[Keys.DOUBLE_TAP_EDIT_ENABLED] = enabled }
         }
 
         suspend fun updateLanSharePairingKeyHex(keyHex: String?) {

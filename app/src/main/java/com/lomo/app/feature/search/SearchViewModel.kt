@@ -77,6 +77,11 @@ class SearchViewModel
                 .isShareCardShowBrandEnabled()
                 .stateInViewModel(viewModelScope, com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND)
 
+        val doubleTapEditEnabled: StateFlow<Boolean> =
+            settingsRepository
+                .isDoubleTapEditEnabled()
+                .stateInViewModel(viewModelScope, com.lomo.data.util.PreferenceKeys.Defaults.DOUBLE_TAP_EDIT_ENABLED)
+
         val activeDayCount: StateFlow<Int> =
             repository
                 .getAllTimestamps()

@@ -602,6 +602,17 @@ class MainViewModel
                     initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHOW_INPUT_HINTS,
                 )
 
+        val doubleTapEditEnabled: StateFlow<Boolean> =
+            settingsRepository
+                .isDoubleTapEditEnabled()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.DOUBLE_TAP_EDIT_ENABLED,
+                )
+
         val shareCardStyle: StateFlow<String> =
             settingsRepository
                 .getShareCardStyle()

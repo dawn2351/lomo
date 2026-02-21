@@ -86,6 +86,7 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val checkUpdates by viewModel.checkUpdatesOnStartup.collectAsStateWithLifecycle()
     val showInputHints by viewModel.showInputHints.collectAsStateWithLifecycle()
+    val doubleTapEditEnabled by viewModel.doubleTapEditEnabled.collectAsStateWithLifecycle()
     val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
     val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
 
@@ -435,6 +436,18 @@ fun SettingsScreen(
                         icon = Icons.Outlined.Info, // Use Info icon for hints
                         checked = showInputHints,
                         onCheckedChange = { viewModel.updateShowInputHints(it) },
+                    )
+
+                    SwitchPreferenceItem(
+                        title =
+                            androidx.compose.ui.res
+                                .stringResource(com.lomo.app.R.string.settings_double_tap_edit),
+                        subtitle =
+                            androidx.compose.ui.res
+                                .stringResource(com.lomo.app.R.string.settings_double_tap_edit_subtitle),
+                        icon = Icons.Outlined.Info,
+                        checked = doubleTapEditEnabled,
+                        onCheckedChange = { viewModel.updateDoubleTapEditEnabled(it) },
                     )
                 }
 

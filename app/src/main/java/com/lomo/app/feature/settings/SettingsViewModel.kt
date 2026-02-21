@@ -87,6 +87,15 @@ class SettingsViewModel
                     PreferenceKeys.Defaults.SHOW_INPUT_HINTS,
                 )
 
+        val doubleTapEditEnabled: StateFlow<Boolean> =
+            settings
+                .isDoubleTapEditEnabled()
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    PreferenceKeys.Defaults.DOUBLE_TAP_EDIT_ENABLED,
+                )
+
         val storageFilenameFormat: StateFlow<String> =
             settings
                 .getStorageFilenameFormat()
@@ -191,6 +200,10 @@ class SettingsViewModel
 
         fun updateShowInputHints(enabled: Boolean) {
             viewModelScope.launch { settings.setShowInputHints(enabled) }
+        }
+
+        fun updateDoubleTapEditEnabled(enabled: Boolean) {
+            viewModelScope.launch { settings.setDoubleTapEditEnabled(enabled) }
         }
 
         fun updateCheckUpdatesOnStartup(enabled: Boolean) {

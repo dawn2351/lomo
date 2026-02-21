@@ -82,6 +82,15 @@ class TagFilterViewModel
                     com.lomo.data.util.PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND,
                 )
 
+        val doubleTapEditEnabled: StateFlow<Boolean> =
+            settingsRepository
+                .isDoubleTapEditEnabled()
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    com.lomo.data.util.PreferenceKeys.Defaults.DOUBLE_TAP_EDIT_ENABLED,
+                )
+
         val activeDayCount: StateFlow<Int> =
             memoRepository
                 .getAllTimestamps()

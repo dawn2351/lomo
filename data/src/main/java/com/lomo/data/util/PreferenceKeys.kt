@@ -26,6 +26,7 @@ object PreferenceKeys {
     const val HAPTIC_FEEDBACK_ENABLED = "haptic_feedback_enabled"
     const val CHECK_UPDATES_ON_STARTUP = "check_updates_on_startup"
     const val SHOW_INPUT_HINTS = "show_input_hints"
+    const val DOUBLE_TAP_EDIT_ENABLED = "double_tap_edit_enabled"
     const val LAN_SHARE_PAIRING_KEY_HEX = "lan_share_pairing_key_hex"
     const val LAN_SHARE_PAIRING_CODE_PLAIN = "lan_share_pairing_code_plain"
     const val LAN_SHARE_E2E_ENABLED = "lan_share_e2e_enabled"
@@ -42,6 +43,7 @@ object PreferenceKeys {
         const val HAPTIC_FEEDBACK_ENABLED = true
         const val CHECK_UPDATES_ON_STARTUP = true
         const val SHOW_INPUT_HINTS = true
+        const val DOUBLE_TAP_EDIT_ENABLED = true
         const val LAN_SHARE_E2E_ENABLED = true
         const val THEME_MODE = "system"
         const val SHARE_CARD_STYLE = "clean"

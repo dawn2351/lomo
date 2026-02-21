@@ -127,6 +127,7 @@ fun MainScreen(
     val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
     val hapticEnabled by viewModel.hapticFeedbackEnabled.collectAsStateWithLifecycle()
     val showInputHints by viewModel.showInputHints.collectAsStateWithLifecycle()
+    val doubleTapEditEnabled by viewModel.doubleTapEditEnabled.collectAsStateWithLifecycle()
     val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
     val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
@@ -572,6 +573,12 @@ fun MainScreen(
                                                     timeFormat = timeFormat,
                                                     todoOverrides = todoOverrides,
                                                     onMemoClick = actions.onMemoClick,
+                                                    onMemoDoubleClick = { memo ->
+                                                        editingMemo = memo
+                                                        inputText = TextFieldValue(memo.content, TextRange(memo.content.length))
+                                                        showInputSheet = true
+                                                    },
+                                                    doubleTapEditEnabled = doubleTapEditEnabled,
                                                     onTagClick = actions.onSidebarTagClick,
                                                     onImageClick = actions.onNavigateToImage,
                                                     onShowMemoMenu = { uiModel ->

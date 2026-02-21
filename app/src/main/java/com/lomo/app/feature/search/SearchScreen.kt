@@ -86,6 +86,7 @@ fun SearchScreen(
     val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
     val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
     val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
+    val doubleTapEditEnabled by viewModel.doubleTapEditEnabled.collectAsStateWithLifecycle()
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
     val haptic = com.lomo.ui.util.LocalAppHapticFeedback.current
@@ -372,6 +373,16 @@ fun SearchScreen(
                                                     dateFormat = dateFormat,
                                                     timeFormat = timeFormat,
                                                     tags = uiModel.tags,
+                                                    onDoubleClick =
+                                                        if (doubleTapEditEnabled) {
+                                                            {
+                                                                editingMemo = memo
+                                                                inputText = TextFieldValue(memo.content, TextRange(memo.content.length))
+                                                                showInputSheet = true
+                                                            }
+                                                        } else {
+                                                            null
+                                                        },
                                                     onMenuClick = {
                                                         showMenu(
                                                             com.lomo.ui.component.menu.MemoMenuState(
