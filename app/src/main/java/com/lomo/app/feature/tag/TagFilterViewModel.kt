@@ -32,6 +32,7 @@ class TagFilterViewModel
     constructor(
         savedStateHandle: SavedStateHandle,
         private val memoRepository: MemoRepository,
+        private val mediaRepository: com.lomo.domain.repository.MediaRepository,
         private val settingsRepository: SettingsRepository,
         val mapper: com.lomo.app.feature.main.MemoUiMapper,
         private val imageMapProvider: com.lomo.domain.provider.ImageMapProvider,
@@ -154,6 +155,25 @@ class TagFilterViewModel
                     throw e
                 } catch (e: Exception) {
                     android.util.Log.e("TagFilterViewModel", "Failed to update memo", e)
+                }
+            }
+        }
+
+        fun saveImage(
+            uri: android.net.Uri,
+            onResult: (String) -> Unit,
+            onError: (() -> Unit)? = null,
+        ) {
+            viewModelScope.launch {
+                try {
+                    val path = mediaRepository.saveImage(uri)
+                    mediaRepository.syncImageCache()
+                    onResult(path)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    android.util.Log.e("TagFilterViewModel", "Failed to save image", e)
+                    onError?.invoke()
                 }
             }
         }

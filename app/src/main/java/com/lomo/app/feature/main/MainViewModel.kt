@@ -397,6 +397,7 @@ class MainViewModel
         fun saveImage(
             uri: android.net.Uri,
             onResult: (String) -> Unit,
+            onError: (() -> Unit)? = null,
         ) {
             viewModelScope.launch {
                 try {
@@ -411,6 +412,7 @@ class MainViewModel
                     throw e
                 } catch (e: Exception) {
                     _errorMessage.value = "Failed to save image: ${e.message}"
+                    onError?.invoke()
                 }
             }
         }
@@ -500,6 +502,16 @@ class MainViewModel
 
             // Check for updates on startup, independent of root directory
             checkForUpdates()
+        }
+
+        fun syncImageCacheNow() {
+            viewModelScope.launch {
+                try {
+                    mediaRepository.syncImageCache()
+                } catch (_: Exception) {
+                    // Best effort refresh.
+                }
+            }
         }
 
         private suspend fun resyncCachesIfAppVersionChanged(rootDir: String?) {

@@ -12,6 +12,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.lomo.app.feature.gallery.GalleryScreen
 import com.lomo.app.feature.image.ImageViewerScreen
 import com.lomo.app.feature.main.MainScreen
 import com.lomo.app.feature.main.MainViewModel
@@ -163,6 +164,7 @@ fun LomoNavHost(
                                 navController.navigate(NavRoute.ImageViewer(encoded))
                             },
                             onNavigateToDailyReview = { navController.navigate(NavRoute.DailyReview) },
+                            onNavigateToGallery = { navController.navigate(NavRoute.Gallery) },
                             onNavigateToShare = { content, timestamp ->
                                 navController.navigate(NavRoute.Share(content, timestamp))
                             },
@@ -225,6 +227,17 @@ fun LomoNavHost(
                             },
                         )
                     }
+                }
+
+                composable<NavRoute.Gallery> {
+                    GalleryScreen(
+                        viewModel = viewModel,
+                        onBackClick = { navController.popBackStack() },
+                        onNavigateToImage = { url ->
+                            val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
+                            navController.navigate(NavRoute.ImageViewer(encoded))
+                        },
+                    )
                 }
 
                 composable<NavRoute.Share> {

@@ -23,6 +23,7 @@ class DailyReviewViewModel
     @Inject
     constructor(
         private val repository: MemoRepository,
+        private val mediaRepository: com.lomo.domain.repository.MediaRepository,
         private val settingsRepository: SettingsRepository,
         private val mapper: com.lomo.app.feature.main.MemoUiMapper,
         private val imageMapProvider: com.lomo.domain.provider.ImageMapProvider,
@@ -107,6 +108,17 @@ class DailyReviewViewModel
                     initialValue = 0,
                 )
 
+        val imageDirectory: StateFlow<String?> =
+            repository
+                .getImageDirectory()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = null,
+                )
+
         init {
             loadDailyReview()
         }
@@ -181,6 +193,25 @@ class DailyReviewViewModel
                     throw e
                 } catch (_: Exception) {
                     // Keep current state on failure.
+                }
+            }
+        }
+
+        fun saveImage(
+            uri: android.net.Uri,
+            onResult: (String) -> Unit,
+            onError: (() -> Unit)? = null,
+        ) {
+            viewModelScope.launch {
+                try {
+                    val path = mediaRepository.saveImage(uri)
+                    mediaRepository.syncImageCache()
+                    onResult(path)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Keep Daily Review UI resilient; skip insertion on failure.
+                    onError?.invoke()
                 }
             }
         }

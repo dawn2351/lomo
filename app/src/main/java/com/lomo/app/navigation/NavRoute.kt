@@ -1,4 +1,3 @@
-
 package com.lomo.app.navigation
 
 import kotlinx.serialization.Serializable
@@ -29,6 +28,9 @@ sealed interface NavRoute {
 
     @Serializable
     data object DailyReview : NavRoute
+
+    @Serializable
+    data object Gallery : NavRoute
 
     @Serializable
     data class Share(

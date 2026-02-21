@@ -5,6 +5,7 @@
     <string name="sidebar_tags">Tags</string>
     <string name="sidebar_trash">Trash</string>
     <string name="sidebar_daily_review">Daily Review</string>
+    <string name="sidebar_gallery">Gallery</string>
     <string name="sidebar_settings">Settings</string>
     
     <!-- Stats -->
@@ -33,6 +34,7 @@
     <string name="input_discard_cancel">Keep editing</string>
     <string name="input_select_tag">Select Tag</string>
     <string name="cd_add_image">Add Image</string>
+    <string name="cd_take_photo">Take Photo</string>
     <string name="cd_add_checkbox">Add Checkbox</string>
     <string name="cd_add_tag">Add Tag</string>
     <string name="cd_send">Send</string>

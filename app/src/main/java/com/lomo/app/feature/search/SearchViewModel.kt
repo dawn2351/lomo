@@ -34,6 +34,7 @@ class SearchViewModel
     @Inject
     constructor(
         private val repository: MemoRepository,
+        private val mediaRepository: com.lomo.domain.repository.MediaRepository,
         private val settingsRepository: SettingsRepository,
         private val mapper: com.lomo.app.feature.main.MemoUiMapper,
         private val imageMapProvider: com.lomo.domain.provider.ImageMapProvider,
@@ -165,6 +166,25 @@ class SearchViewModel
                     throw e
                 } catch (_: Exception) {
                     // Keep Search UI resilient; paging stream will recover on next invalidation.
+                }
+            }
+        }
+
+        fun saveImage(
+            uri: android.net.Uri,
+            onResult: (String) -> Unit,
+            onError: (() -> Unit)? = null,
+        ) {
+            viewModelScope.launch {
+                try {
+                    val path = mediaRepository.saveImage(uri)
+                    mediaRepository.syncImageCache()
+                    onResult(path)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Keep Search UI resilient; skip insertion on failure.
+                    onError?.invoke()
                 }
             }
         }

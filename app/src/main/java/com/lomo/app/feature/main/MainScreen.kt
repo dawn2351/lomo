@@ -1,4 +1,5 @@
 package com.lomo.app.feature.main
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -75,6 +76,7 @@ import com.lomo.ui.util.formatAsDateTime
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * MainScreen with comprehensive audit improvements.
@@ -107,6 +109,7 @@ fun MainScreen(
     onNavigateToTag: (String) -> Unit,
     onNavigateToImage: (String) -> Unit,
     onNavigateToDailyReview: () -> Unit,
+    onNavigateToGallery: () -> Unit,
     onNavigateToShare: (String, Long) -> Unit = { _, _ -> },
     viewModel: MainViewModel = hiltViewModel(),
     sidebarViewModel: SidebarViewModel = hiltViewModel(),
@@ -194,14 +197,17 @@ fun MainScreen(
                 is MainViewModel.SharedContent.Image -> {
                     if (imageDir != null) {
                         // Logic handled via saving image in ViewModel then appending markdown
-                        viewModel.saveImage(content.uri) { path ->
-                            val markdown = "![image]($path)"
-                            val cur = inputText.text
-                            val newText = if (cur.isEmpty()) markdown else "$cur\n$markdown"
-                            inputText = TextFieldValue(newText, TextRange(newText.length))
-                            showInputSheet = true
-                            viewModel.consumeSharedContent()
-                        }
+                        viewModel.saveImage(
+                            uri = content.uri,
+                            onResult = { path ->
+                                val markdown = "![image]($path)"
+                                val cur = inputText.text
+                                val newText = if (cur.isEmpty()) markdown else "$cur\n$markdown"
+                                inputText = TextFieldValue(newText, TextRange(newText.length))
+                                showInputSheet = true
+                                viewModel.consumeSharedContent()
+                            },
+                        )
                     } else {
                         // Trigger directory setup if missing
                         directorySetupType = DirectorySetupType.Image
@@ -281,15 +287,46 @@ fun MainScreen(
         }
 
         // Image Picker
+        var pendingCameraFile by remember { mutableStateOf<File?>(null) }
+        var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+        fun appendImageMarkdown(path: String) {
+            val markdown = "![image]($path)"
+            val current = inputText.text
+            val newText = if (current.isEmpty()) markdown else "$current\n$markdown"
+            inputText = TextFieldValue(newText, TextRange(newText.length))
+        }
+
         val imagePicker =
             rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
                 uri?.let {
-                    viewModel.saveImage(it) { path ->
-                        val markdown = "![image]($path)"
-                        val cur = inputText.text
-                        val newText = if (cur.isEmpty()) markdown else "$cur\n$markdown"
-                        inputText = TextFieldValue(newText, TextRange(newText.length))
-                    }
+                    viewModel.saveImage(it, ::appendImageMarkdown)
+                }
+            }
+
+        val cameraLauncher =
+            rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { isSuccess ->
+                val file = pendingCameraFile
+                val uri = pendingCameraUri
+                if (isSuccess && uri != null) {
+                    viewModel.saveImage(
+                        uri = uri,
+                        onResult = { path ->
+                            appendImageMarkdown(path)
+                            runCatching { file?.delete() }
+                            pendingCameraFile = null
+                            pendingCameraUri = null
+                        },
+                        onError = {
+                            runCatching { file?.delete() }
+                            pendingCameraFile = null
+                            pendingCameraUri = null
+                        },
+                    )
+                } else {
+                    runCatching { file?.delete() }
+                    pendingCameraFile = null
+                    pendingCameraUri = null
                 }
             }
 
@@ -343,6 +380,10 @@ fun MainScreen(
                             if (!isExpanded) scope.launch { drawerState.close() }
                             onNavigateToDailyReview()
                         },
+                        onGalleryClick = {
+                            if (!isExpanded) scope.launch { drawerState.close() }
+                            onNavigateToGallery()
+                        },
                     )
                 }
 
@@ -357,6 +398,7 @@ fun MainScreen(
                     onSettingsClick = actions.onSettings,
                     onTrashClick = actions.onTrash,
                     onDailyReviewClick = actions.onDailyReviewClick,
+                    onGalleryClick = actions.onGalleryClick,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -629,6 +671,29 @@ fun MainScreen(
                         )
                     }
                 },
+                onCameraClick = {
+                    if (imageDirectory == null) {
+                        directorySetupType = DirectorySetupType.Image
+                    } else {
+                        runCatching {
+                            val (file, uri) =
+                                com.lomo.app.util.CameraCaptureUtils
+                                    .createTempCaptureUri(context)
+                            pendingCameraFile = file
+                            pendingCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        }.onFailure { error ->
+                            runCatching { pendingCameraFile?.delete() }
+                            pendingCameraFile = null
+                            pendingCameraUri = null
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    error.message ?: context.getString(R.string.error_unknown),
+                                )
+                            }
+                        }
+                    }
+                },
                 availableTags = allTags,
                 // Recording Integration
                 // Recording Integration
@@ -725,6 +790,7 @@ data class MainScreenActions(
     val onRefresh: () -> Unit,
     val onNavigateToImage: (String) -> Unit,
     val onDailyReviewClick: () -> Unit,
+    val onGalleryClick: () -> Unit,
 )
 
 // Removed duplicate formatTime - now using DateTimeUtils.format()

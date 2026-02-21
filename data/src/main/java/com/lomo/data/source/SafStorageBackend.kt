@@ -20,6 +20,19 @@ class SafStorageBackend(
 ) : StorageBackend,
     ImageStorageBackend,
     VoiceStorageBackend {
+    private val imageExtensions =
+        setOf(
+            "jpg",
+            "jpeg",
+            "png",
+            "gif",
+            "webp",
+            "bmp",
+            "heic",
+            "heif",
+            "avif",
+        )
+
     private fun getRoot(): DocumentFile? {
         val root = DocumentFile.fromTreeUri(context, rootUri) ?: return null
         return if (subDir != null) {
@@ -27,6 +40,11 @@ class SafStorageBackend(
         } else {
             root
         }
+    }
+
+    private fun isImageFilename(name: String): Boolean {
+        val extension = name.substringAfterLast('.', "")
+        return extension.isNotBlank() && extension.lowercase() in imageExtensions
     }
 
     // Cache trash dir to avoid repeated findFile calls
@@ -469,7 +487,14 @@ class SafStorageBackend(
         withContext(Dispatchers.IO) {
             val root = getRoot() ?: return@withContext emptyList()
             root.listFiles().mapNotNull { file ->
-                file.name?.let { name -> name to file.uri.toString() }
+                val name = file.name
+                if (name == null || !file.isFile) return@mapNotNull null
+                val mimeType = file.type
+                if (mimeType?.startsWith("image/") == true || isImageFilename(name)) {
+                    name to file.uri.toString()
+                } else {
+                    null
+                }
             }
         }
 

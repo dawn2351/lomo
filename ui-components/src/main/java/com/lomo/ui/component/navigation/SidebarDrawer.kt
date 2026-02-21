@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Settings
@@ -68,6 +69,7 @@ fun SidebarDrawer(
     onMemoClick: () -> Unit = {},
     onTrashClick: () -> Unit = {},
     onDailyReviewClick: () -> Unit = {},
+    onGalleryClick: () -> Unit = {},
     onTagClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -177,6 +179,17 @@ fun SidebarDrawer(
                     androidx.compose.ui.res
                         .stringResource(com.lomo.ui.R.string.sidebar_daily_review),
                 onClick = onDailyReviewClick,
+            )
+        }
+
+        // Gallery
+        item {
+            NavigationItem(
+                icon = Icons.Outlined.PhotoLibrary,
+                label =
+                    androidx.compose.ui.res
+                        .stringResource(com.lomo.ui.R.string.sidebar_gallery),
+                onClick = onGalleryClick,
             )
         }
 

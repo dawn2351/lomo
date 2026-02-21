@@ -173,6 +173,11 @@
     <string name="search_no_results_title">No results found</string>
     <string name="search_no_results_desc">Try adjusting your search terms</string>
 
+    <!-- Gallery -->
+    <string name="gallery_title">Gallery</string>
+    <string name="gallery_empty_title">No images yet</string>
+    <string name="gallery_empty_desc">Images in your memo library will appear here</string>
+
     <!-- Trash Screen -->
     <string name="trash_title">Trash Bin</string>
     <string name="trash_empty_title">Trash is empty</string>

@@ -14,7 +14,25 @@ class DirectStorageBackend(
 ) : StorageBackend,
     ImageStorageBackend,
     VoiceStorageBackend {
+    private val imageExtensions =
+        setOf(
+            "jpg",
+            "jpeg",
+            "png",
+            "gif",
+            "webp",
+            "bmp",
+            "heic",
+            "heif",
+            "avif",
+        )
+
     private val trashDir: File get() = File(rootDir, ".trash")
+
+    private fun isImageFilename(name: String): Boolean {
+        val extension = name.substringAfterLast('.', "")
+        return extension.isNotBlank() && extension.lowercase() in imageExtensions
+    }
 
     private fun ensureRootExists() {
         if (!rootDir.exists()) rootDir.mkdirs()
@@ -232,9 +250,13 @@ class DirectStorageBackend(
         withContext(Dispatchers.IO) {
             if (!rootDir.exists() || !rootDir.isDirectory) return@withContext emptyList()
 
-            rootDir.listFiles()?.map { file ->
-                file.name to Uri.fromFile(file).toString()
-            } ?: emptyList()
+            rootDir
+                .listFiles()
+                ?.asSequence()
+                ?.filter { file -> file.isFile && isImageFilename(file.name) }
+                ?.map { file -> file.name to Uri.fromFile(file).toString() }
+                ?.toList()
+                ?: emptyList()
         }
 
     override suspend fun deleteImage(filename: String) =

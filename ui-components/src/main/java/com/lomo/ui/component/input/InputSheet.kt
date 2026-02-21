@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -81,6 +82,7 @@ fun InputSheet(
     onDismiss: () -> Unit,
     onSubmit: (String) -> Unit,
     onImageClick: () -> Unit,
+    onCameraClick: () -> Unit = {},
     availableTags: List<String> = emptyList(),
     // Recording params
     isRecording: Boolean = false,
@@ -516,6 +518,23 @@ fun InputSheet(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // Camera
+                            IconButton(
+                                onClick = {
+                                    haptic.medium()
+                                    onCameraClick()
+                                },
+                            ) {
+                                Icon(
+                                    Icons.Rounded.PhotoCamera,
+                                    contentDescription =
+                                        androidx.compose.ui.res.stringResource(
+                                            com.lomo.ui.R.string.cd_take_photo,
+                                        ),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+
                             // Image
                             IconButton(
                                 onClick = {
@@ -528,35 +547,6 @@ fun InputSheet(
                                     contentDescription =
                                         androidx.compose.ui.res.stringResource(
                                             com.lomo.ui.R.string.cd_add_image,
-                                        ),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-
-                            // Todo
-                            IconButton(
-                                onClick = {
-                                    haptic.medium()
-                                    val start = inputValue.text
-                                    val newText =
-                                        if (start.isEmpty()) {
-                                            "- [ ] "
-                                        } else {
-                                            "$start\n- [ ] "
-                                        }
-                                    onInputValueChange(
-                                        TextFieldValue(
-                                            newText,
-                                            TextRange(newText.length),
-                                        ),
-                                    )
-                                },
-                            ) {
-                                Icon(
-                                    Icons.Rounded.CheckBox,
-                                    contentDescription =
-                                        androidx.compose.ui.res.stringResource(
-                                            com.lomo.ui.R.string.cd_add_checkbox,
                                         ),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -610,6 +600,35 @@ fun InputSheet(
                                             MaterialTheme.colorScheme
                                                 .onSurfaceVariant
                                         },
+                                )
+                            }
+
+                            // Todo
+                            IconButton(
+                                onClick = {
+                                    haptic.medium()
+                                    val start = inputValue.text
+                                    val newText =
+                                        if (start.isEmpty()) {
+                                            "- [ ] "
+                                        } else {
+                                            "$start\n- [ ] "
+                                        }
+                                    onInputValueChange(
+                                        TextFieldValue(
+                                            newText,
+                                            TextRange(newText.length),
+                                        ),
+                                    )
+                                },
+                            ) {
+                                Icon(
+                                    Icons.Rounded.CheckBox,
+                                    contentDescription =
+                                        androidx.compose.ui.res.stringResource(
+                                            com.lomo.ui.R.string.cd_add_checkbox,
+                                        ),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
 
