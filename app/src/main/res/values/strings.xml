@@ -40,6 +40,7 @@
     <string name="input_hint_1">Long press + to scroll to top</string>
     <string name="input_hint_2">Triple enter to quick send</string>
     <string name="input_hint_3">Support nested tags #tag/subtag</string>
+    <string name="input_hint_4">Double-tap a memo card to quickly enter edit mode</string>
     
     <!-- Dialog Titles -->
     <string name="settings_select_date_format">Select Date Format</string>

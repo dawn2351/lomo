@@ -465,10 +465,40 @@ object ShareUtils {
             )
 
             val leftText = if (config.showTime) createdAtText else ""
-            val leftTextWidthLimit = textMaxWidth * 0.58f
-            val rightTextWidthLimit = textMaxWidth * 0.38f
-            val displayLeft = ellipsizeToWidth(leftText, leftTextWidthLimit, footerPaint)
-            val displayRight = ellipsizeToWidth(activeDayCountText, rightTextWidthLimit, footerPaint)
+            val footerGap = 10f * density
+            val footerAvailableWidth = textMaxWidth
+            val hasLeft = leftText.isNotBlank()
+            val hasRight = activeDayCountText.isNotBlank()
+
+            val (displayLeft, displayRight) =
+                when {
+                    hasLeft && hasRight -> {
+                        // Prioritize right-side "recorded days" visibility for longer English strings.
+                        val minLeftWidth = footerPaint.measureText("00-00 00:00")
+                        val rightMaxWidth =
+                            (footerAvailableWidth - footerGap - minLeftWidth)
+                                .coerceAtLeast(footerAvailableWidth * 0.45f)
+                                .coerceAtMost(footerAvailableWidth - footerGap)
+                        val resolvedRight = ellipsizeToWidth(activeDayCountText, rightMaxWidth, footerPaint)
+                        val leftMaxWidth =
+                            (footerAvailableWidth - footerGap - footerPaint.measureText(resolvedRight))
+                                .coerceAtLeast(0f)
+                        val resolvedLeft = ellipsizeToWidth(leftText, leftMaxWidth, footerPaint)
+                        resolvedLeft to resolvedRight
+                    }
+
+                    hasLeft -> {
+                        ellipsizeToWidth(leftText, footerAvailableWidth, footerPaint) to ""
+                    }
+
+                    hasRight -> {
+                        "" to ellipsizeToWidth(activeDayCountText, footerAvailableWidth, footerPaint)
+                    }
+
+                    else -> {
+                        "" to ""
+                    }
+                }
 
             if (displayLeft.isNotBlank()) {
                 canvas.drawText(displayLeft, cardRect.left + cardPadding, footerBaseline, footerPaint)
