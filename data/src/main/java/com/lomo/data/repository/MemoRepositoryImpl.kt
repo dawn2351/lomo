@@ -36,6 +36,7 @@ class MemoRepositoryImpl
             // Clear entire database cache when switching root directory
             // This ensures data from the previous directory doesn't persist
             dao.clearAll()
+            dao.clearTrash()
             dao.clearFts()
             imageCacheDao.clearAll()
 
@@ -63,6 +64,7 @@ class MemoRepositoryImpl
         override suspend fun updateRootUri(uri: String?) {
             // Clear entire database cache when switching root directory
             dao.clearAll()
+            dao.clearTrash()
             dao.clearFts()
             imageCacheDao.clearAll()
 

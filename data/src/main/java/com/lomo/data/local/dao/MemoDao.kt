@@ -7,32 +7,32 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.lomo.data.local.entity.MemoEntity
+import com.lomo.data.local.entity.TrashMemoEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MemoDao {
-    @Query("SELECT * FROM Lomo WHERE isDeleted = 0 ORDER BY timestamp DESC, id DESC")
+    @Query("SELECT * FROM Lomo ORDER BY timestamp DESC, id DESC")
     fun getAllMemos(): PagingSource<Int, MemoEntity>
 
-    @Query("SELECT * FROM Lomo WHERE isDeleted = 0 ORDER BY RANDOM() LIMIT :limit")
+    @Query("SELECT * FROM Lomo ORDER BY RANDOM() LIMIT :limit")
     suspend fun getRandomMemos(limit: Int): List<MemoEntity>
 
-    @Query("SELECT * FROM Lomo WHERE isDeleted = 0 ORDER BY timestamp DESC LIMIT :limit")
+    @Query("SELECT * FROM Lomo ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentMemos(limit: Int): List<MemoEntity>
 
-    @Query("SELECT id FROM Lomo WHERE isDeleted = 0")
+    @Query("SELECT id FROM Lomo")
     suspend fun getAllMemoIds(): List<String>
 
     @Query("SELECT * FROM Lomo WHERE id IN (:ids)")
     suspend fun getMemosByIds(ids: List<String>): List<MemoEntity>
 
-    @Query("SELECT COUNT(*) FROM Lomo WHERE isDeleted = 0")
+    @Query("SELECT COUNT(*) FROM Lomo")
     suspend fun getMemoCountSync(): Int
 
     @Query(
         """
         SELECT * FROM Lomo
-        WHERE isDeleted = 0
         ORDER BY timestamp DESC, id DESC
         LIMIT :limit OFFSET :offset
         """,
@@ -47,7 +47,6 @@ interface MemoDao {
         """
         SELECT * FROM Lomo 
         WHERE content LIKE '%' || :query || '%' 
-        AND isDeleted = 0 
         ORDER BY timestamp DESC, id DESC
         """,
     )
@@ -57,7 +56,7 @@ interface MemoDao {
         """
         SELECT Lomo.* FROM Lomo
         INNER JOIN lomo_fts ON lomo_fts.memoId = Lomo.id
-        WHERE Lomo.isDeleted = 0 AND lomo_fts MATCH :matchQuery
+        WHERE lomo_fts MATCH :matchQuery
         ORDER BY Lomo.timestamp DESC, Lomo.id DESC
         """,
     )
@@ -84,12 +83,6 @@ interface MemoDao {
 
     @Delete suspend fun deleteMemo(memo: MemoEntity) // Used for permanent delete
 
-    @Query("UPDATE Lomo SET isDeleted = 1 WHERE id = :id")
-    suspend fun softDeleteMemo(id: String)
-
-    @Query("SELECT * FROM Lomo WHERE isDeleted = 1 ORDER BY timestamp DESC, id DESC")
-    fun getDeletedMemos(): PagingSource<Int, MemoEntity>
-
     @Query("DELETE FROM Lomo WHERE id = :id")
     suspend fun deleteMemoById(id: String)
 
@@ -108,24 +101,17 @@ interface MemoDao {
     @Query("SELECT * FROM Lomo")
     suspend fun getAllMemosSync(): List<MemoEntity>
 
-    @Query("SELECT * FROM Lomo WHERE date = :date AND isDeleted = :isDeleted")
-    suspend fun getMemosByDate(
-        date: String,
-        isDeleted: Boolean,
-    ): List<MemoEntity>
+    @Query("SELECT * FROM Lomo WHERE date = :date")
+    suspend fun getMemosByDate(date: String): List<MemoEntity>
 
-    @Query("DELETE FROM Lomo WHERE date = :date AND isDeleted = :isDeleted")
-    suspend fun deleteMemosByDate(
-        date: String,
-        isDeleted: Boolean,
-    )
+    @Query("DELETE FROM Lomo WHERE date = :date")
+    suspend fun deleteMemosByDate(date: String)
 
     // Tag Support (flat tags column in Lomo table)
     @Query(
         """
         SELECT * FROM Lomo
-        WHERE isDeleted = 0
-        AND (
+        WHERE (
             (',' || tags || ',') LIKE '%,' || :tag || ',%'
             OR (',' || tags || ',') LIKE '%,' || :tag || '/%'
         )
@@ -134,17 +120,17 @@ interface MemoDao {
     )
     fun getMemosByTag(tag: String): PagingSource<Int, MemoEntity>
 
-    @Query("SELECT tags FROM Lomo WHERE isDeleted = 0 AND tags != ''")
+    @Query("SELECT tags FROM Lomo WHERE tags != ''")
     fun getAllTagStrings(): Flow<List<String>>
 
     // Stats
-    @Query("SELECT COUNT(*) FROM Lomo WHERE isDeleted = 0")
+    @Query("SELECT COUNT(*) FROM Lomo")
     fun getMemoCount(): Flow<Int>
 
-    @Query("SELECT COUNT(DISTINCT date) FROM Lomo WHERE isDeleted = 0")
+    @Query("SELECT COUNT(DISTINCT date) FROM Lomo")
     fun getActiveDayCount(): Flow<Int>
 
-    @Query("SELECT timestamp FROM Lomo WHERE isDeleted = 0 ORDER BY timestamp DESC")
+    @Query("SELECT timestamp FROM Lomo ORDER BY timestamp DESC")
     fun getAllTimestamps(): Flow<List<Long>>
 
     @Query(
@@ -154,4 +140,32 @@ interface MemoDao {
         imagePath: String,
         excludeId: String,
     ): Int
+
+    // Trash Support
+    @Query("SELECT * FROM LomoTrash ORDER BY timestamp DESC, id DESC")
+    fun getDeletedMemos(): PagingSource<Int, TrashMemoEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTrashMemos(memos: List<TrashMemoEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTrashMemo(memo: TrashMemoEntity)
+
+    @Query("SELECT * FROM LomoTrash WHERE id = :id")
+    suspend fun getTrashMemo(id: String): TrashMemoEntity?
+
+    @Query("SELECT * FROM LomoTrash WHERE date = :date")
+    suspend fun getTrashMemosByDate(date: String): List<TrashMemoEntity>
+
+    @Query("DELETE FROM LomoTrash WHERE id = :id")
+    suspend fun deleteTrashMemoById(id: String)
+
+    @Query("DELETE FROM LomoTrash WHERE id IN (:ids)")
+    suspend fun deleteTrashMemosByIds(ids: List<String>)
+
+    @Query("DELETE FROM LomoTrash WHERE date = :date")
+    suspend fun deleteTrashMemosByDate(date: String)
+
+    @Query("DELETE FROM LomoTrash")
+    suspend fun clearTrash()
 }
