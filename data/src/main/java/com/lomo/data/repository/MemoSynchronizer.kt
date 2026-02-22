@@ -6,8 +6,6 @@ import com.lomo.data.local.dao.MemoDao
 import com.lomo.data.local.entity.FileSyncEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFtsEntity
-import com.lomo.data.local.entity.MemoTagCrossRef
-import com.lomo.data.local.entity.TagEntity
 import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.source.FileDataSource
 import com.lomo.data.util.MemoTextProcessor
@@ -250,7 +248,6 @@ class MemoSynchronizer
 
                                 dao.insertMemos(deduplicatedMemos)
                                 deduplicatedMemos.forEach {
-                                    updateMemoTags(it)
                                     val tokenized =
                                         com.lomo.data.util.SearchTokenizer
                                             .tokenize(it.content)
@@ -275,9 +272,6 @@ class MemoSynchronizer
                                 }
                                 fileSyncDao.deleteSyncMetadata(filename, isTrash)
                             }
-
-                            // Cleanup orphan tags after full refresh to ensure sidebar consistency
-                            dao.deleteOrphanTags()
                         }
                     } catch (e: Exception) {
                         Timber.e(e, "Error during refresh")
@@ -301,7 +295,6 @@ class MemoSynchronizer
             if (allMemos.isNotEmpty()) {
                 dao.insertMemos(allMemos)
                 allMemos.forEach {
-                    updateMemoTags(it)
                     val tokenized =
                         com.lomo.data.util.SearchTokenizer
                             .tokenize(it.content)
@@ -380,7 +373,6 @@ class MemoSynchronizer
             // Then DB
             val entity = MemoEntity.fromDomain(newMemo)
             dao.insertMemo(entity)
-            updateMemoTags(entity)
             val tokenizedContent =
                 com.lomo.data.util.SearchTokenizer
                     .tokenize(entity.content)
@@ -463,7 +455,6 @@ class MemoSynchronizer
                     // Then DB
                     val finalEntity = MemoEntity.fromDomain(finalUpdatedMemo)
                     dao.insertMemo(finalEntity)
-                    updateMemoTags(finalEntity)
                     val tokenizedContent =
                         com.lomo.data.util.SearchTokenizer
                             .tokenize(finalEntity.content)
@@ -531,9 +522,6 @@ class MemoSynchronizer
                     // 4. Update DB after file operations succeed
                     dao.softDeleteMemo(memo.id)
                     dao.deleteMemoFts(memo.id)
-
-                    // Cleanup orphan tags
-                    dao.deleteOrphanTags()
                 }
             }
         }
@@ -586,7 +574,6 @@ class MemoSynchronizer
                         // Update DB: Set isDeleted = false ONLY IF file operations were successful
                         val entity = MemoEntity.fromDomain(memo.copy(isDeleted = false))
                         dao.insertMemo(entity)
-                        updateMemoTags(entity)
                         val tokenized =
                             com.lomo.data.util.SearchTokenizer
                                 .tokenize(entity.content)
@@ -655,26 +642,4 @@ class MemoSynchronizer
                 filename.endsWith(".mp3", ignoreCase = true) ||
                 filename.endsWith(".aac", ignoreCase = true) ||
                 filename.startsWith("voice_", ignoreCase = true)
-
-        private suspend fun updateMemoTags(memo: MemoEntity) {
-            val tags =
-                if (memo.tags.isNotEmpty()) {
-                    memo.tags.split(",").filter { it.isNotBlank() }
-                } else {
-                    emptyList()
-                }
-
-            // Always clear old tags for this memo to ensure consistency (handle removals)
-            dao.deleteMemoTags(memo.id)
-
-            if (tags.isNotEmpty()) {
-                // Ensure tags exist in Tag table
-                val tagEntities = tags.map { TagEntity(it) }
-                dao.insertTags(tagEntities)
-
-                // Link them
-                val refs = tags.map { MemoTagCrossRef(memo.id, it) }
-                dao.insertMemoTagCrossRefs(refs)
-            }
-        }
     }

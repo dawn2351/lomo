@@ -8,10 +8,14 @@ import com.lomo.data.source.FileDataSource
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.impl.annotations.MockK
 import io.mockk.just
 import io.mockk.runs
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -71,5 +75,43 @@ class MemoRepositoryImplTest {
                     repository.saveMemo("content", timestamp = 456L)
                 }.exceptionOrNull()
             assertTrue(thrown is IllegalStateException)
+        }
+
+    @Test
+    fun `getAllTags flattens deduplicates and sorts tags from memo rows`() =
+        runTest {
+            every { dao.getAllTagStrings() } returns
+                flowOf(
+                    listOf(
+                        "beta,alpha",
+                        "alpha,gamma",
+                        "gamma",
+                    ),
+                )
+
+            val tags = repository.getAllTags().first()
+
+            assertEquals(listOf("alpha", "beta", "gamma"), tags)
+        }
+
+    @Test
+    fun `getTagCounts counts each tag once per memo row`() =
+        runTest {
+            every { dao.getAllTagStrings() } returns
+                flowOf(
+                    listOf(
+                        "alpha,beta,beta",
+                        "beta,gamma",
+                        "alpha",
+                    ),
+                )
+
+            val counts =
+                repository
+                    .getTagCounts()
+                    .first()
+                    .associate { it.name to it.count }
+
+            assertEquals(mapOf("alpha" to 2, "beta" to 2, "gamma" to 1), counts)
         }
 }

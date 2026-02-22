@@ -8,10 +8,8 @@ import com.lomo.data.source.FileDataSource
 import com.lomo.data.source.FileMetadataWithId
 import com.lomo.data.util.MemoTextProcessor
 import io.mockk.MockKAnnotations
-import io.mockk.any
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.eq
 import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.test.runTest
 import org.junit.Before

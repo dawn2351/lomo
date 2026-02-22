@@ -7,8 +7,6 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.lomo.data.local.entity.MemoEntity
-import com.lomo.data.local.entity.MemoTagCrossRef
-import com.lomo.data.local.entity.TagEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -122,38 +120,22 @@ interface MemoDao {
         isDeleted: Boolean,
     )
 
-    // Tag Support
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertTags(tags: List<TagEntity>)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMemoTagCrossRefs(refs: List<MemoTagCrossRef>)
-
-    @Query("DELETE FROM memo_tag_cross_ref WHERE memoId = :memoId")
-    suspend fun deleteMemoTags(memoId: String)
-
+    // Tag Support (flat tags column in Lomo table)
     @Query(
         """
-        SELECT Lomo.* FROM Lomo 
-        INNER JOIN memo_tag_cross_ref ON Lomo.id = memo_tag_cross_ref.memoId 
-        WHERE (memo_tag_cross_ref.tagName = :tag OR memo_tag_cross_ref.tagName LIKE :tag || '/%') 
-        AND Lomo.isDeleted = 0
+        SELECT * FROM Lomo
+        WHERE isDeleted = 0
+        AND (
+            (',' || tags || ',') LIKE '%,' || :tag || ',%'
+            OR (',' || tags || ',') LIKE '%,' || :tag || '/%'
+        )
         ORDER BY Lomo.timestamp DESC, Lomo.id DESC
     """,
     )
     fun getMemosByTag(tag: String): PagingSource<Int, MemoEntity>
 
-    @Query(
-        """
-        SELECT * FROM tags 
-        WHERE name IN (
-            SELECT DISTINCT tagName FROM memo_tag_cross_ref 
-            INNER JOIN Lomo ON memo_tag_cross_ref.memoId = Lomo.id 
-            WHERE Lomo.isDeleted = 0
-        )
-    """,
-    )
-    fun getAllTags(): Flow<List<TagEntity>>
+    @Query("SELECT tags FROM Lomo WHERE isDeleted = 0 AND tags != ''")
+    fun getAllTagStrings(): Flow<List<String>>
 
     // Stats
     @Query("SELECT COUNT(*) FROM Lomo WHERE isDeleted = 0")
@@ -166,37 +148,10 @@ interface MemoDao {
     fun getAllTimestamps(): Flow<List<Long>>
 
     @Query(
-        """
-        SELECT name, (SELECT COUNT(*) FROM memo_tag_cross_ref INNER JOIN Lomo ON memo_tag_cross_ref.memoId = Lomo.id WHERE tagName = name AND Lomo.isDeleted = 0) as count 
-        FROM tags
-        WHERE count > 0
-    """,
-    )
-    fun getTagCounts(): Flow<List<com.lomo.domain.model.TagCount>>
-
-    @Query(
         "SELECT COUNT(*) FROM Lomo WHERE imageUrls LIKE '%' || :imagePath || '%' AND id != :excludeId",
     )
     suspend fun countMemosWithImage(
         imagePath: String,
         excludeId: String,
     ): Int
-
-    // Cleanup orphan tags (tags with no associated non-deleted memos)
-    @Query(
-        """
-            DELETE FROM tags WHERE name NOT IN (
-                SELECT DISTINCT tagName FROM memo_tag_cross_ref 
-                INNER JOIN Lomo ON memo_tag_cross_ref.memoId = Lomo.id 
-                WHERE Lomo.isDeleted = 0
-            )
-        """,
-    )
-    suspend fun deleteOrphanTags()
-
-    @Query("DELETE FROM tags")
-    suspend fun clearTags()
-
-    @Query("DELETE FROM memo_tag_cross_ref")
-    suspend fun clearCrossRefs()
 }

@@ -9,21 +9,17 @@ import com.lomo.data.local.entity.FileSyncEntity
 import com.lomo.data.local.entity.ImageCacheEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFtsEntity
-import com.lomo.data.local.entity.MemoTagCrossRef
-import com.lomo.data.local.entity.TagEntity
 
 @Database(
     entities =
         [
             MemoEntity::class,
             ImageCacheEntity::class,
-            TagEntity::class,
-            MemoTagCrossRef::class,
             MemoFtsEntity::class,
             FileSyncEntity::class,
             com.lomo.data.local.entity.FileCacheEntity::class,
         ],
-    version = 14,
+    version = 15,
     exportSchema = false,
 )
 abstract class MemoDatabase : RoomDatabase() {

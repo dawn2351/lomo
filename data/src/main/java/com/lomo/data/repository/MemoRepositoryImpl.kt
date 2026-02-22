@@ -37,8 +37,6 @@ class MemoRepositoryImpl
             // This ensures data from the previous directory doesn't persist
             dao.clearAll()
             dao.clearFts()
-            dao.clearTags()
-            dao.clearCrossRefs()
             imageCacheDao.clearAll()
 
             dataSource.setRoot(path)
@@ -66,8 +64,6 @@ class MemoRepositoryImpl
             // Clear entire database cache when switching root directory
             dao.clearAll()
             dao.clearFts()
-            dao.clearTags()
-            dao.clearCrossRefs()
             imageCacheDao.clearAll()
 
             dataStore.updateRootUri(uri)
@@ -213,7 +209,17 @@ class MemoRepositoryImpl
             ).flow
                 .map { pagingData -> pagingData.map { it.toDomain() } }
 
-        override fun getAllTags(): Flow<List<String>> = dao.getAllTags().map { entities -> entities.map { it.name } }
+        override fun getAllTags(): Flow<List<String>> =
+            dao.getAllTagStrings().map { rawTags ->
+                rawTags
+                    .asSequence()
+                    .flatMap { it.split(',').asSequence() }
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinct()
+                    .sorted()
+                    .toList()
+            }
 
         override fun getMemoCount(): Flow<Int> = dao.getMemoCount()
 
@@ -221,7 +227,25 @@ class MemoRepositoryImpl
 
         override fun getAllTimestamps(): Flow<List<Long>> = dao.getAllTimestamps()
 
-        override fun getTagCounts(): Flow<List<com.lomo.domain.model.TagCount>> = dao.getTagCounts()
+        override fun getTagCounts(): Flow<List<com.lomo.domain.model.TagCount>> =
+            dao.getAllTagStrings().map { rawTags ->
+                val counts = linkedMapOf<String, Int>()
+                rawTags.forEach { tags ->
+                    tags
+                        .split(',')
+                        .asSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .distinct()
+                        .forEach { tag ->
+                            counts[tag] = (counts[tag] ?: 0) + 1
+                        }
+                }
+                counts.map { (name, count) ->
+                    com.lomo.domain.model
+                        .TagCount(name, count)
+                }
+            }
 
         override fun getDeletedMemos(): Flow<PagingData<Memo>> =
             Pager(
