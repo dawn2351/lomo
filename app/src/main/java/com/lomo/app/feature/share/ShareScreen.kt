@@ -648,6 +648,10 @@ private fun localizeShareErrorDetail(detailRaw: String): String {
             stringResource(R.string.share_error_set_password_first)
         }
 
+        detail.equals("Please set a LAN share pairing code first", ignoreCase = true) -> {
+            stringResource(R.string.share_error_set_password_first)
+        }
+
         detail.contains("pairing code is not configured on receiver", ignoreCase = true) -> {
             stringResource(R.string.share_error_receiver_password_not_set)
         }

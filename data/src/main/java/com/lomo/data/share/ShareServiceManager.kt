@@ -46,7 +46,6 @@ class ShareServiceManager
     ) {
         companion object {
             private const val TAG = "ShareServiceManager"
-            private const val OPEN_MODE_FALLBACK_PAIRING_CODE = "lomo-lan-open-mode"
             private const val MAX_DEVICE_NAME_CHARS = 32
             private const val DEFAULT_DEVICE_NAME = "Android Device"
             private const val MAX_ATTACHMENT_SIZE_BYTES = 100L * 1024L * 1024L
@@ -65,10 +64,11 @@ class ShareServiceManager
 
         private val _transferState = MutableStateFlow<ShareTransferState>(ShareTransferState.Idle)
         val transferState: StateFlow<ShareTransferState> = _transferState.asStateFlow()
+        private val pairingCodeInputState = MutableStateFlow("")
 
         val lanShareE2eEnabled = dataStore.lanShareE2eEnabled
         val lanSharePairingConfigured = dataStore.lanSharePairingKeyHex.map { ShareAuthUtils.isValidKeyHex(it) }
-        val lanSharePairingCode = dataStore.lanSharePairingCodePlain.map { it ?: "" }
+        val lanSharePairingCode: StateFlow<String> = pairingCodeInputState.asStateFlow()
         val lanShareDeviceName = dataStore.lanShareDeviceName.map { sanitizeDeviceName(it) ?: getFallbackDeviceName() }
 
         private var serverPort: Int = 0
@@ -130,6 +130,9 @@ class ShareServiceManager
             }
             server.getPairingKeyHex = {
                 getEffectivePairingKeyHex()
+            }
+            server.isE2eEnabled = {
+                dataStore.lanShareE2eEnabled.first()
             }
 
             scope.launch {
@@ -210,6 +213,7 @@ class ShareServiceManager
         ): Result<Unit> =
             withContext(Dispatchers.IO) {
                 try {
+                    val e2eEnabled = dataStore.lanShareE2eEnabled.first()
                     if (requiresPairingBeforeSend()) {
                         val message = "Please set an end-to-end encryption password first"
                         _transferState.value = ShareTransferState.Error(message)
@@ -254,6 +258,7 @@ class ShareServiceManager
                             timestamp = timestamp,
                             senderName = resolveDeviceName(),
                             attachments = attachmentInfos,
+                            e2eEnabled = e2eEnabled,
                         )
 
                     if (result.isFailure) {
@@ -279,6 +284,7 @@ class ShareServiceManager
                             timestamp = timestamp,
                             sessionToken = sessionToken,
                             attachmentUris = resolvedAttachmentUris,
+                            e2eEnabled = e2eEnabled,
                         )
 
                     if (success) {
@@ -321,12 +327,12 @@ class ShareServiceManager
                 ShareAuthUtils.deriveKeyHexFromPairingCode(normalized)
                     ?: throw IllegalArgumentException("Pairing code must be 6-64 characters")
             dataStore.updateLanSharePairingKeyHex(keyHex)
-            dataStore.updateLanSharePairingCodePlain(normalized)
+            pairingCodeInputState.value = normalized
         }
 
         suspend fun clearLanSharePairingCode() {
             dataStore.updateLanSharePairingKeyHex(null)
-            dataStore.updateLanSharePairingCodePlain(null)
+            pairingCodeInputState.value = ""
         }
 
         suspend fun setLanShareDeviceName(deviceName: String) {
@@ -574,14 +580,7 @@ class ShareServiceManager
                 getPairingKeyHex = { getEffectivePairingKeyHex() },
             )
 
-        private suspend fun getEffectivePairingKeyHex(): String? {
-            val e2eEnabled = dataStore.lanShareE2eEnabled.first()
-            return if (e2eEnabled) {
-                dataStore.lanSharePairingKeyHex.first()
-            } else {
-                ShareAuthUtils.deriveKeyHexFromPairingCode(OPEN_MODE_FALLBACK_PAIRING_CODE)
-            }
-        }
+        private suspend fun getEffectivePairingKeyHex(): String? = dataStore.lanSharePairingKeyHex.first()
 
         private suspend fun resolveDeviceName(): String {
             val custom = dataStore.lanShareDeviceName.first()

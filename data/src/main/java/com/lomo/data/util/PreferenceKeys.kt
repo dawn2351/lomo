@@ -28,7 +28,6 @@ object PreferenceKeys {
     const val SHOW_INPUT_HINTS = "show_input_hints"
     const val DOUBLE_TAP_EDIT_ENABLED = "double_tap_edit_enabled"
     const val LAN_SHARE_PAIRING_KEY_HEX = "lan_share_pairing_key_hex"
-    const val LAN_SHARE_PAIRING_CODE_PLAIN = "lan_share_pairing_code_plain"
     const val LAN_SHARE_E2E_ENABLED = "lan_share_e2e_enabled"
     const val LAN_SHARE_DEVICE_NAME = "lan_share_device_name"
     const val SHARE_CARD_STYLE = "share_card_style"

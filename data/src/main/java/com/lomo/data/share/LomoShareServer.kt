@@ -69,6 +69,7 @@ class LomoShareServer {
     private data class ApprovedSession(
         val requestHash: String,
         val attachmentNames: Set<String>,
+        val e2eEnabled: Boolean,
         val createdAtMs: Long,
     )
 
@@ -87,6 +88,9 @@ class LomoShareServer {
 
     // Callback to resolve local pairing key for request authentication
     var getPairingKeyHex: (suspend () -> String?)? = null
+
+    // Callback to check whether receiver currently requires E2E mode.
+    var isE2eEnabled: (suspend () -> Boolean)? = null
 
     private val json =
         Json {
@@ -121,6 +125,11 @@ class LomoShareServer {
                                 return@post
                             }
                             val request = json.decodeFromString<PrepareRequest>(body)
+                            val localE2eEnabled = isE2eEnabled?.invoke() ?: true
+                            if (request.e2eEnabled != localE2eEnabled) {
+                                call.respond(HttpStatusCode.PreconditionFailed, "Encryption mode mismatch")
+                                return@post
+                            }
                             val validationError = validatePrepareRequest(request)
                             if (validationError != null) {
                                 call.respond(HttpStatusCode.BadRequest, validationError)
@@ -132,17 +141,21 @@ class LomoShareServer {
                                 return@post
                             }
                             val keyHex = authValidation.keyHex
-                            if (keyHex.isNullOrBlank()) {
+                            if (request.e2eEnabled && keyHex.isNullOrBlank()) {
                                 call.respond(HttpStatusCode.PreconditionFailed, "Missing pairing key")
                                 return@post
                             }
                             val decryptedContent =
-                                ShareCryptoUtils.decryptText(
-                                    keyHex = keyHex,
-                                    ciphertextBase64 = request.encryptedContent,
-                                    nonceBase64 = request.contentNonce,
-                                    aad = "memo-content",
-                                )
+                                if (request.e2eEnabled) {
+                                    ShareCryptoUtils.decryptText(
+                                        keyHex = keyHex ?: "",
+                                        ciphertextBase64 = request.encryptedContent,
+                                        nonceBase64 = request.contentNonce,
+                                        aad = "memo-content",
+                                    )
+                                } else {
+                                    request.encryptedContent
+                                }
                             if (decryptedContent == null) {
                                 call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt prepare content")
                                 return@post
@@ -154,7 +167,13 @@ class LomoShareServer {
 
                             val payload = request.toSharePayload(decryptedContent)
                             val normalizedNames = request.attachments.map { it.name.trim() }
-                            val requestHash = buildRequestHash(decryptedContent, request.timestamp, normalizedNames)
+                            val requestHash =
+                                buildRequestHash(
+                                    content = decryptedContent,
+                                    timestamp = request.timestamp,
+                                    attachmentNames = normalizedNames,
+                                    e2eEnabled = request.e2eEnabled,
+                                )
 
                             Timber.tag(TAG).d("Prepare request from: ${payload.senderName}")
 
@@ -199,6 +218,7 @@ class LomoShareServer {
                                             ApprovedSession(
                                                 requestHash = requestHash,
                                                 attachmentNames = normalizedNames.toSet(),
+                                                e2eEnabled = request.e2eEnabled,
                                                 createdAtMs = System.currentTimeMillis(),
                                             )
                                     }
@@ -256,6 +276,12 @@ class LomoShareServer {
                                             }
                                             val meta = json.decodeFromString<TransferMetadata>(part.value)
                                             metadata = meta
+                                            val localE2eEnabled = isE2eEnabled?.invoke() ?: true
+                                            if (meta.e2eEnabled != localE2eEnabled) {
+                                                part.dispose()
+                                                call.respond(HttpStatusCode.PreconditionFailed, "Encryption mode mismatch")
+                                                return@post
+                                            }
                                             val metaError = validateTransferMetadata(meta)
                                             if (metaError != null) {
                                                 part.dispose()
@@ -269,18 +295,22 @@ class LomoShareServer {
                                                 return@post
                                             }
                                             val keyHex = authValidation.keyHex
-                                            if (keyHex.isNullOrBlank()) {
+                                            if (meta.e2eEnabled && keyHex.isNullOrBlank()) {
                                                 part.dispose()
                                                 call.respond(HttpStatusCode.PreconditionFailed, "Missing pairing key")
                                                 return@post
                                             }
                                             val plainContent =
-                                                ShareCryptoUtils.decryptText(
-                                                    keyHex = keyHex,
-                                                    ciphertextBase64 = meta.encryptedContent,
-                                                    nonceBase64 = meta.contentNonce,
-                                                    aad = "memo-content",
-                                                )
+                                                if (meta.e2eEnabled) {
+                                                    ShareCryptoUtils.decryptText(
+                                                        keyHex = keyHex ?: "",
+                                                        ciphertextBase64 = meta.encryptedContent,
+                                                        nonceBase64 = meta.contentNonce,
+                                                        aad = "memo-content",
+                                                    )
+                                                } else {
+                                                    meta.encryptedContent
+                                                }
                                             if (plainContent == null) {
                                                 part.dispose()
                                                 call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt transfer content")
@@ -293,14 +323,21 @@ class LomoShareServer {
                                             }
 
                                             val normalizedNames = meta.attachmentNames.map { it.trim() }
-                                            val requestHash = buildRequestHash(plainContent, meta.timestamp, normalizedNames)
+                                            val requestHash =
+                                                buildRequestHash(
+                                                    content = plainContent,
+                                                    timestamp = meta.timestamp,
+                                                    attachmentNames = normalizedNames,
+                                                    e2eEnabled = meta.e2eEnabled,
+                                                )
                                             val validSession =
                                                 synchronized(stateLock) {
                                                     cleanupExpiredSessionsLocked()
                                                     val existing = approvedSessions[meta.sessionToken]
                                                     if (existing == null ||
                                                         existing.requestHash != requestHash ||
-                                                        existing.attachmentNames != normalizedNames.toSet()
+                                                        existing.attachmentNames != normalizedNames.toSet() ||
+                                                        existing.e2eEnabled != meta.e2eEnabled
                                                     ) {
                                                         false
                                                     } else {
@@ -314,7 +351,12 @@ class LomoShareServer {
                                                 return@post
                                             }
                                             expectedAttachmentNames = normalizedNames.toSet()
-                                            expectedAttachmentNonces = meta.attachmentNonces.mapKeys { it.key.trim() }
+                                            expectedAttachmentNonces =
+                                                if (meta.e2eEnabled) {
+                                                    meta.attachmentNonces.mapKeys { it.key.trim() }
+                                                } else {
+                                                    emptyMap()
+                                                }
                                             expectedByUploadName = buildUploadNameLookup(expectedAttachmentNames)
                                             transferKeyHex = keyHex
                                             decryptedContent = plainContent
@@ -358,33 +400,50 @@ class LomoShareServer {
                                             return@post
                                         }
 
-                                        val bytes = readBytesLimited(part, MAX_ATTACHMENT_ENCRYPTED_SIZE_BYTES)
+                                        val currentMetadata = metadata
+                                        val perAttachmentMax =
+                                            if (currentMetadata.e2eEnabled) {
+                                                MAX_ATTACHMENT_ENCRYPTED_SIZE_BYTES
+                                            } else {
+                                                MAX_ATTACHMENT_SIZE_BYTES
+                                            }
+                                        val totalAttachmentMax =
+                                            if (currentMetadata.e2eEnabled) {
+                                                MAX_TOTAL_ATTACHMENT_ENCRYPTED_BYTES
+                                            } else {
+                                                MAX_TOTAL_ATTACHMENT_BYTES
+                                            }
+                                        val bytes = readBytesLimited(part, perAttachmentMax)
                                         totalAttachmentBytes += bytes.size.toLong()
-                                        if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_ENCRYPTED_BYTES) {
+                                        if (totalAttachmentBytes > totalAttachmentMax) {
                                             part.dispose()
                                             call.respond(HttpStatusCode.PayloadTooLarge, "Attachments too large")
                                             return@post
                                         }
 
-                                        val attachmentNonce = expectedAttachmentNonces[expectedReferenceName]
-                                        if (attachmentNonce.isNullOrBlank()) {
-                                            part.dispose()
-                                            call.respond(HttpStatusCode.BadRequest, "Missing attachment nonce")
-                                            return@post
-                                        }
-                                        val keyHex = transferKeyHex
-                                        if (keyHex.isNullOrBlank()) {
-                                            part.dispose()
-                                            call.respond(HttpStatusCode.PreconditionFailed, "Missing transfer key")
-                                            return@post
-                                        }
                                         val decryptedBytes =
-                                            ShareCryptoUtils.decryptBytes(
-                                                keyHex = keyHex,
-                                                ciphertext = bytes,
-                                                nonceBase64 = attachmentNonce,
-                                                aad = "attachment:$expectedReferenceName",
-                                            )
+                                            if (currentMetadata.e2eEnabled) {
+                                                val attachmentNonce = expectedAttachmentNonces[expectedReferenceName]
+                                                if (attachmentNonce.isNullOrBlank()) {
+                                                    part.dispose()
+                                                    call.respond(HttpStatusCode.BadRequest, "Missing attachment nonce")
+                                                    return@post
+                                                }
+                                                val keyHex = transferKeyHex
+                                                if (keyHex.isNullOrBlank()) {
+                                                    part.dispose()
+                                                    call.respond(HttpStatusCode.PreconditionFailed, "Missing transfer key")
+                                                    return@post
+                                                }
+                                                ShareCryptoUtils.decryptBytes(
+                                                    keyHex = keyHex,
+                                                    ciphertext = bytes,
+                                                    nonceBase64 = attachmentNonce,
+                                                    aad = "attachment:$expectedReferenceName",
+                                                )
+                                            } else {
+                                                bytes
+                                            }
                                         if (decryptedBytes == null) {
                                             part.dispose()
                                             call.respond(HttpStatusCode.Unauthorized, "Cannot decrypt attachment")
@@ -505,11 +564,35 @@ class LomoShareServer {
         if (request.senderName.isBlank() || request.senderName.length > MAX_SENDER_NAME_CHARS) {
             return "Invalid sender name"
         }
-        if (request.encryptedContent.isBlank() || request.encryptedContent.length > MAX_ENCRYPTED_MEMO_CHARS) {
-            return "Encrypted memo content too large"
+        if (request.encryptedContent.isBlank()) {
+            return "Memo content is empty"
         }
-        if (!isValidContentNonce(request.contentNonce)) {
-            return "Invalid content nonce"
+        if (request.e2eEnabled) {
+            if (request.encryptedContent.length > MAX_ENCRYPTED_MEMO_CHARS) {
+                return "Encrypted memo content too large"
+            }
+            if (!isValidContentNonce(request.contentNonce)) {
+                return "Invalid content nonce"
+            }
+            if (request.authTimestampMs <= 0L) {
+                return "Invalid auth timestamp"
+            }
+            if (!isValidAuthNonce(request.authNonce)) {
+                return "Invalid auth nonce"
+            }
+            if (!isValidSignatureHex(request.authSignature)) {
+                return "Invalid auth signature"
+            }
+        } else {
+            if (request.encryptedContent.length > MAX_MEMO_CHARS) {
+                return "Memo content too large"
+            }
+            if (request.contentNonce.isNotBlank()) {
+                return "Content nonce is not allowed in open mode"
+            }
+            if (request.authTimestampMs != 0L || request.authNonce.isNotBlank() || request.authSignature.isNotBlank()) {
+                return "Auth fields are not allowed in open mode"
+            }
         }
         if (request.attachments.size > MAX_ATTACHMENTS) {
             return "Too many attachments"
@@ -534,16 +617,6 @@ class LomoShareServer {
                 return "Attachment too large"
             }
         }
-
-        if (request.authTimestampMs <= 0L) {
-            return "Invalid auth timestamp"
-        }
-        if (!isValidAuthNonce(request.authNonce)) {
-            return "Invalid auth nonce"
-        }
-        if (!isValidSignatureHex(request.authSignature)) {
-            return "Invalid auth signature"
-        }
         return null
     }
 
@@ -551,11 +624,38 @@ class LomoShareServer {
         if (metadata.sessionToken.isBlank()) {
             return "Missing share session token"
         }
-        if (metadata.encryptedContent.isBlank() || metadata.encryptedContent.length > MAX_ENCRYPTED_MEMO_CHARS) {
-            return "Encrypted memo content too large"
+        if (metadata.encryptedContent.isBlank()) {
+            return "Memo content is empty"
         }
-        if (!isValidContentNonce(metadata.contentNonce)) {
-            return "Invalid content nonce"
+        if (metadata.e2eEnabled) {
+            if (metadata.encryptedContent.length > MAX_ENCRYPTED_MEMO_CHARS) {
+                return "Encrypted memo content too large"
+            }
+            if (!isValidContentNonce(metadata.contentNonce)) {
+                return "Invalid content nonce"
+            }
+            if (metadata.authTimestampMs <= 0L) {
+                return "Invalid auth timestamp"
+            }
+            if (!isValidAuthNonce(metadata.authNonce)) {
+                return "Invalid auth nonce"
+            }
+            if (!isValidSignatureHex(metadata.authSignature)) {
+                return "Invalid auth signature"
+            }
+        } else {
+            if (metadata.encryptedContent.length > MAX_MEMO_CHARS) {
+                return "Memo content too large"
+            }
+            if (metadata.contentNonce.isNotBlank()) {
+                return "Content nonce is not allowed in open mode"
+            }
+            if (metadata.authTimestampMs != 0L || metadata.authNonce.isNotBlank() || metadata.authSignature.isNotBlank()) {
+                return "Auth fields are not allowed in open mode"
+            }
+            if (metadata.attachmentNonces.isNotEmpty()) {
+                return "Attachment nonces are not allowed in open mode"
+            }
         }
         if (metadata.attachmentNames.size > MAX_ATTACHMENTS) {
             return "Too many attachments"
@@ -571,35 +671,28 @@ class LomoShareServer {
                 return "Duplicate attachment name"
             }
         }
-        if (metadata.attachmentNonces.size > MAX_ATTACHMENTS) {
-            return "Too many attachment nonces"
-        }
-        val normalizedAttachmentNonces = mutableMapOf<String, String>()
-        for ((rawName, nonce) in metadata.attachmentNonces) {
-            val trimmedName = rawName.trim()
-            if (!isValidAttachmentReferenceName(trimmedName)) {
-                return "Invalid attachment nonce name"
+        if (metadata.e2eEnabled) {
+            if (metadata.attachmentNonces.size > MAX_ATTACHMENTS) {
+                return "Too many attachment nonces"
             }
-            if (normalizedAttachmentNonces.put(trimmedName, nonce) != null) {
-                return "Duplicate attachment nonce name"
+            val normalizedAttachmentNonces = mutableMapOf<String, String>()
+            for ((rawName, nonce) in metadata.attachmentNonces) {
+                val trimmedName = rawName.trim()
+                if (!isValidAttachmentReferenceName(trimmedName)) {
+                    return "Invalid attachment nonce name"
+                }
+                if (normalizedAttachmentNonces.put(trimmedName, nonce) != null) {
+                    return "Duplicate attachment nonce name"
+                }
             }
-        }
-        if (normalizedAttachmentNonces.keys != seenNames) {
-            return "Attachment nonce mismatch"
-        }
-        for ((_, nonce) in normalizedAttachmentNonces) {
-            if (!isValidContentNonce(nonce)) {
-                return "Invalid attachment nonce"
+            if (normalizedAttachmentNonces.keys != seenNames) {
+                return "Attachment nonce mismatch"
             }
-        }
-        if (metadata.authTimestampMs <= 0L) {
-            return "Invalid auth timestamp"
-        }
-        if (!isValidAuthNonce(metadata.authNonce)) {
-            return "Invalid auth nonce"
-        }
-        if (!isValidSignatureHex(metadata.authSignature)) {
-            return "Invalid auth signature"
+            for ((_, nonce) in normalizedAttachmentNonces) {
+                if (!isValidContentNonce(nonce)) {
+                    return "Invalid attachment nonce"
+                }
+            }
         }
         return null
     }
@@ -612,6 +705,9 @@ class LomoShareServer {
     )
 
     private suspend fun validatePrepareAuthentication(request: PrepareRequest): AuthValidation {
+        if (!request.e2eEnabled) {
+            return AuthValidation(ok = true, keyHex = null)
+        }
         val pairingKeyHex = getPairingKeyHex?.invoke()?.trim()
         if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
             return AuthValidation(
@@ -656,6 +752,9 @@ class LomoShareServer {
     }
 
     private suspend fun validateTransferAuthentication(metadata: TransferMetadata): AuthValidation {
+        if (!metadata.e2eEnabled) {
+            return AuthValidation(ok = true, keyHex = null)
+        }
         val pairingKeyHex = getPairingKeyHex?.invoke()?.trim()
         if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
             return AuthValidation(
@@ -787,10 +886,13 @@ class LomoShareServer {
         content: String,
         timestamp: Long,
         attachmentNames: List<String>,
+        e2eEnabled: Boolean,
     ): String {
         val canonicalNames = attachmentNames.map { it.trim() }.sorted()
         val raw =
             buildString {
+                append(if (e2eEnabled) "e2e" else "open")
+                append('\n')
                 append(timestamp)
                 append('\n')
                 append(content)
@@ -830,6 +932,7 @@ class LomoShareServer {
         val encryptedContent: String,
         val contentNonce: String,
         val timestamp: Long,
+        val e2eEnabled: Boolean = true,
         val attachments: List<AttachmentInfo> = emptyList(),
         val authTimestampMs: Long = 0L,
         val authNonce: String = "",
@@ -866,6 +969,7 @@ class LomoShareServer {
         val encryptedContent: String,
         val contentNonce: String,
         val timestamp: Long,
+        val e2eEnabled: Boolean = true,
         val attachmentNames: List<String> = emptyList(),
         val attachmentNonces: Map<String, String> = emptyMap(),
         val authTimestampMs: Long = 0L,

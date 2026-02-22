@@ -56,7 +56,6 @@ class LomoDataStore
             val SHOW_INPUT_HINTS = booleanPreferencesKey(PreferenceKeys.SHOW_INPUT_HINTS)
             val DOUBLE_TAP_EDIT_ENABLED = booleanPreferencesKey(PreferenceKeys.DOUBLE_TAP_EDIT_ENABLED)
             val LAN_SHARE_PAIRING_KEY_HEX = stringPreferencesKey(PreferenceKeys.LAN_SHARE_PAIRING_KEY_HEX)
-            val LAN_SHARE_PAIRING_CODE_PLAIN = stringPreferencesKey(PreferenceKeys.LAN_SHARE_PAIRING_CODE_PLAIN)
             val LAN_SHARE_E2E_ENABLED = booleanPreferencesKey(PreferenceKeys.LAN_SHARE_E2E_ENABLED)
             val LAN_SHARE_DEVICE_NAME = stringPreferencesKey(PreferenceKeys.LAN_SHARE_DEVICE_NAME)
             val SHARE_CARD_STYLE = stringPreferencesKey(PreferenceKeys.SHARE_CARD_STYLE)
@@ -226,18 +225,6 @@ class LomoDataStore
                     timber.log.Timber.e(
                         "LomoDataStore",
                         "Error in lanSharePairingKeyHex flow",
-                        e,
-                    )
-                    emit(null)
-                }
-
-        val lanSharePairingCodePlain: Flow<String?> =
-            dataStore.data
-                .map { prefs -> prefs[Keys.LAN_SHARE_PAIRING_CODE_PLAIN] }
-                .catch { e ->
-                    timber.log.Timber.e(
-                        "LomoDataStore",
-                        "Error in lanSharePairingCodePlain flow",
                         e,
                     )
                     emit(null)
@@ -417,16 +404,6 @@ class LomoDataStore
                     prefs.remove(Keys.LAN_SHARE_PAIRING_KEY_HEX)
                 } else {
                     prefs[Keys.LAN_SHARE_PAIRING_KEY_HEX] = keyHex
-                }
-            }
-        }
-
-        suspend fun updateLanSharePairingCodePlain(code: String?) {
-            dataStore.edit { prefs ->
-                if (code.isNullOrBlank()) {
-                    prefs.remove(Keys.LAN_SHARE_PAIRING_CODE_PLAIN)
-                } else {
-                    prefs[Keys.LAN_SHARE_PAIRING_CODE_PLAIN] = code
                 }
             }
         }

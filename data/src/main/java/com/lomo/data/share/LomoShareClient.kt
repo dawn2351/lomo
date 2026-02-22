@@ -64,45 +64,63 @@ class LomoShareClient(
         timestamp: Long,
         senderName: String,
         attachments: List<ShareAttachmentInfo>,
+        e2eEnabled: Boolean,
     ): Result<String?> {
         return try {
-            val pairingKeyHex = getPairingKeyHex()?.trim()
-            if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
-                return Result.failure(Exception("LAN share pairing code is not configured"))
-            }
-            val keyHex = pairingKeyHex ?: return Result.failure(Exception("LAN share pairing code is not configured"))
-
-            val authTimestampMs = System.currentTimeMillis()
-            val authNonce = ShareAuthUtils.generateNonce()
             val attachmentNames = attachments.map { it.name.trim() }
-            val encryptedContent =
-                ShareCryptoUtils.encryptText(
-                    keyHex = keyHex,
-                    plaintext = content,
-                    aad = "memo-content",
-                )
-            val signaturePayload =
-                ShareAuthUtils.buildPreparePayloadToSign(
-                    senderName = senderName,
-                    encryptedContent = encryptedContent.ciphertextBase64,
-                    contentNonce = encryptedContent.nonceBase64,
-                    timestamp = timestamp,
-                    attachmentNames = attachmentNames,
-                    authTimestampMs = authTimestampMs,
-                    authNonce = authNonce,
-                )
-            val authSignature =
-                ShareAuthUtils.signPayloadHex(
-                    keyHex = keyHex,
-                    payload = signaturePayload,
-                )
+            val payloadContent: String
+            val contentNonce: String
+            val authTimestampMs: Long
+            val authNonce: String
+            val authSignature: String
+
+            if (e2eEnabled) {
+                val pairingKeyHex = getPairingKeyHex()?.trim()
+                if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
+                    return Result.failure(Exception("LAN share pairing code is not configured"))
+                }
+                val keyHex = pairingKeyHex ?: return Result.failure(Exception("LAN share pairing code is not configured"))
+
+                val encryptedContent =
+                    ShareCryptoUtils.encryptText(
+                        keyHex = keyHex,
+                        plaintext = content,
+                        aad = "memo-content",
+                    )
+                payloadContent = encryptedContent.ciphertextBase64
+                contentNonce = encryptedContent.nonceBase64
+                authTimestampMs = System.currentTimeMillis()
+                authNonce = ShareAuthUtils.generateNonce()
+                val signaturePayload =
+                    ShareAuthUtils.buildPreparePayloadToSign(
+                        senderName = senderName,
+                        encryptedContent = payloadContent,
+                        contentNonce = contentNonce,
+                        timestamp = timestamp,
+                        attachmentNames = attachmentNames,
+                        authTimestampMs = authTimestampMs,
+                        authNonce = authNonce,
+                    )
+                authSignature =
+                    ShareAuthUtils.signPayloadHex(
+                        keyHex = keyHex,
+                        payload = signaturePayload,
+                    )
+            } else {
+                payloadContent = content
+                contentNonce = ""
+                authTimestampMs = 0L
+                authNonce = ""
+                authSignature = ""
+            }
 
             val request =
                 LomoShareServer.PrepareRequest(
                     senderName = senderName,
-                    encryptedContent = encryptedContent.ciphertextBase64,
-                    contentNonce = encryptedContent.nonceBase64,
+                    encryptedContent = payloadContent,
+                    contentNonce = contentNonce,
                     timestamp = timestamp,
+                    e2eEnabled = e2eEnabled,
                     attachments =
                         attachments.map {
                             LomoShareServer.AttachmentInfo(name = it.name, type = it.type, size = it.size)
@@ -158,76 +176,109 @@ class LomoShareClient(
         timestamp: Long,
         sessionToken: String,
         attachmentUris: Map<String, Uri>,
+        e2eEnabled: Boolean,
     ): Boolean {
         return try {
-            val pairingKeyHex = getPairingKeyHex()?.trim()
-            if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
-                Timber.tag(TAG).w("LAN share pairing code is not configured")
-                return false
-            }
-            val keyHex = pairingKeyHex ?: return false
-
-            val authTimestampMs = System.currentTimeMillis()
-            val authNonce = ShareAuthUtils.generateNonce()
-
-            data class EncryptedAttachment(
+            data class TransferAttachment(
                 val name: String,
-                val encryptedBytes: ByteArray,
-                val nonceBase64: String,
+                val payloadBytes: ByteArray,
+                val nonceBase64: String?,
                 val contentType: String,
             )
 
-            val encryptedContent =
-                ShareCryptoUtils.encryptText(
-                    keyHex = keyHex,
-                    plaintext = content,
-                    aad = "memo-content",
-                )
-            val encryptedAttachments = mutableListOf<EncryptedAttachment>()
-            for ((filename, uri) in attachmentUris) {
-                val bytes =
-                    readUriBytes(uri, MAX_ATTACHMENT_SIZE_BYTES)
-                        ?: throw IllegalStateException("Failed to read attachment: $filename")
-                val encrypted =
-                    ShareCryptoUtils.encryptBytes(
-                        keyHex = keyHex,
-                        plaintext = bytes,
-                        aad = "attachment:$filename",
-                    )
-                encryptedAttachments +=
-                    EncryptedAttachment(
-                        name = filename,
-                        encryptedBytes = encrypted.ciphertext,
-                        nonceBase64 = encrypted.nonceBase64,
-                        contentType = guessContentType(filename),
-                    )
-            }
+            val attachmentPayloads = mutableListOf<TransferAttachment>()
+            val payloadContent: String
+            val contentNonce: String
+            val authTimestampMs: Long
+            val authNonce: String
+            val authSignature: String
 
-            val attachmentNames = encryptedAttachments.map { it.name }
-            val signaturePayload =
-                ShareAuthUtils.buildTransferPayloadToSign(
-                    sessionToken = sessionToken,
-                    encryptedContent = encryptedContent.ciphertextBase64,
-                    contentNonce = encryptedContent.nonceBase64,
-                    timestamp = timestamp,
-                    attachmentNames = attachmentNames,
-                    authTimestampMs = authTimestampMs,
-                    authNonce = authNonce,
-                )
-            val authSignature =
-                ShareAuthUtils.signPayloadHex(
-                    keyHex = keyHex,
-                    payload = signaturePayload,
-                )
+            if (e2eEnabled) {
+                val pairingKeyHex = getPairingKeyHex()?.trim()
+                if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
+                    Timber.tag(TAG).w("LAN share pairing code is not configured")
+                    return false
+                }
+                val keyHex = pairingKeyHex ?: return false
+                val encryptedContent =
+                    ShareCryptoUtils.encryptText(
+                        keyHex = keyHex,
+                        plaintext = content,
+                        aad = "memo-content",
+                    )
+                payloadContent = encryptedContent.ciphertextBase64
+                contentNonce = encryptedContent.nonceBase64
+
+                for ((filename, uri) in attachmentUris) {
+                    val bytes =
+                        readUriBytes(uri, MAX_ATTACHMENT_SIZE_BYTES)
+                            ?: throw IllegalStateException("Failed to read attachment: $filename")
+                    val encrypted =
+                        ShareCryptoUtils.encryptBytes(
+                            keyHex = keyHex,
+                            plaintext = bytes,
+                            aad = "attachment:$filename",
+                        )
+                    attachmentPayloads +=
+                        TransferAttachment(
+                            name = filename,
+                            payloadBytes = encrypted.ciphertext,
+                            nonceBase64 = encrypted.nonceBase64,
+                            contentType = guessContentType(filename),
+                        )
+                }
+
+                authTimestampMs = System.currentTimeMillis()
+                authNonce = ShareAuthUtils.generateNonce()
+                val attachmentNames = attachmentPayloads.map { it.name }
+                val signaturePayload =
+                    ShareAuthUtils.buildTransferPayloadToSign(
+                        sessionToken = sessionToken,
+                        encryptedContent = payloadContent,
+                        contentNonce = contentNonce,
+                        timestamp = timestamp,
+                        attachmentNames = attachmentNames,
+                        authTimestampMs = authTimestampMs,
+                        authNonce = authNonce,
+                    )
+                authSignature =
+                    ShareAuthUtils.signPayloadHex(
+                        keyHex = keyHex,
+                        payload = signaturePayload,
+                    )
+            } else {
+                payloadContent = content
+                contentNonce = ""
+                authTimestampMs = 0L
+                authNonce = ""
+                authSignature = ""
+                for ((filename, uri) in attachmentUris) {
+                    val bytes =
+                        readUriBytes(uri, MAX_ATTACHMENT_SIZE_BYTES)
+                            ?: throw IllegalStateException("Failed to read attachment: $filename")
+                    attachmentPayloads +=
+                        TransferAttachment(
+                            name = filename,
+                            payloadBytes = bytes,
+                            nonceBase64 = null,
+                            contentType = guessContentType(filename),
+                        )
+                }
+            }
 
             val metadata =
                 LomoShareServer.TransferMetadata(
                     sessionToken = sessionToken,
-                    encryptedContent = encryptedContent.ciphertextBase64,
-                    contentNonce = encryptedContent.nonceBase64,
+                    encryptedContent = payloadContent,
+                    contentNonce = contentNonce,
                     timestamp = timestamp,
-                    attachmentNames = attachmentNames,
-                    attachmentNonces = encryptedAttachments.associate { it.name to it.nonceBase64 },
+                    e2eEnabled = e2eEnabled,
+                    attachmentNames = attachmentPayloads.map { it.name },
+                    attachmentNonces =
+                        attachmentPayloads
+                            .mapNotNull { attachment ->
+                                attachment.nonceBase64?.let { attachment.name to it }
+                            }.toMap(),
                     authTimestampMs = authTimestampMs,
                     authNonce = authNonce,
                     authSignature = authSignature,
@@ -246,10 +297,10 @@ class LomoShareClient(
 
                             // Part 2+: Attachment files
                             var index = 0
-                            for (attachment in encryptedAttachments) {
+                            for (attachment in attachmentPayloads) {
                                 append(
                                     "attachment_$index",
-                                    attachment.encryptedBytes,
+                                    attachment.payloadBytes,
                                     Headers.build {
                                         append(HttpHeaders.ContentType, attachment.contentType)
                                         append(HttpHeaders.ContentDisposition, "filename=\"${attachment.name}\"")
