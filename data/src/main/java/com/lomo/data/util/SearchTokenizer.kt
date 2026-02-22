@@ -10,36 +10,15 @@ object SearchTokenizer {
         while (i < length) {
             val c = text[i]
             if (isCJK(c)) {
-                // CJK Character
-                sb.append(c)
-                // Append bigram if next char is also CJK or valid
+                // Emit Unigram for partial matching (e.g. searching "你" in "你好")
+                sb.append(c).append(" ")
+
+                // Emit Bigram for exact phrase matching (e.g. "你好")
                 if (i + 1 < length) {
                     val next = text[i + 1]
                     if (isCJK(next)) {
-                        sb.append(next)
-                        sb.append(" ")
-                    } else if (Character.isLetterOrDigit(next)) {
-                        // CJK followed by ASCII, treat as separate tokens usually,
-                        // but for "ID号", "ID" "号" is better.
-                        // Let's stick to pure CJK bigrams for now.
-                        sb.append(" ")
-                    } else {
-                        sb.append(" ")
+                        sb.append(c).append(next).append(" ")
                     }
-                } else {
-                    // Last char unigram? FTS4 by default ignores single chars often,
-                    // but for CJK single char is important.
-                    // Let's ensure single chars are also indexed if we want?
-                    // "你好" -> "你好"
-                    // "我" -> "我"
-                    // If we just do bigrams: "你好" -> "你好". Search "你" fails?
-                    // To support "你", we might need unigrams too.
-                    // "你好" -> "你 好 你好"
-                    // But that triples the index size.
-                    // Usually "Search for '你'" matches "你好" in "LIKE" but FTS matches tokens.
-                    // If we query "你*", it matches "你好".
-                    // So we rely on query prefix matching if needed.
-                    sb.append(" ")
                 }
             } else if (Character.isLetterOrDigit(c)) {
                 // ASCII/Other

@@ -7,10 +7,13 @@ import com.lomo.data.source.FileContent
 import com.lomo.data.source.FileDataSource
 import com.lomo.data.source.FileMetadataWithId
 import com.lomo.data.util.MemoTextProcessor
-import io.mockk.*
+import io.mockk.MockKAnnotations
+import io.mockk.any
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.eq
 import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
@@ -28,8 +31,6 @@ class MemoSynchronizerTest {
     @MockK private lateinit var dataStore: com.lomo.data.local.datastore.LomoDataStore
 
     @MockK private lateinit var fileCacheDao: com.lomo.data.local.dao.FileCacheDao
-
-    @MockK private lateinit var tokenDao: com.lomo.data.local.dao.MemoTokenDao
 
     private lateinit var processor: MemoTextProcessor
     private lateinit var parser: MarkdownParser
@@ -56,7 +57,6 @@ class MemoSynchronizerTest {
                 processor,
                 dataStore,
                 fileCacheDao,
-                tokenDao,
             )
     }
 

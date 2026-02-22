@@ -55,6 +55,16 @@ interface MemoDao {
     )
     fun searchMemos(query: String): PagingSource<Int, MemoEntity>
 
+    @Query(
+        """
+        SELECT Lomo.* FROM Lomo
+        INNER JOIN lomo_fts ON lomo_fts.memoId = Lomo.id
+        WHERE Lomo.isDeleted = 0 AND lomo_fts MATCH :matchQuery
+        ORDER BY Lomo.timestamp DESC, Lomo.id DESC
+        """,
+    )
+    fun searchMemosByFts(matchQuery: String): PagingSource<Int, MemoEntity>
+
     // FTS
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemoFts(fts: com.lomo.data.local.entity.MemoFtsEntity)

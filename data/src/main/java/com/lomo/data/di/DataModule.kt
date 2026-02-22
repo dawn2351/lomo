@@ -38,14 +38,6 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideMemoTokenDao(database: MemoDatabase): com.lomo.data.local.dao.MemoTokenDao =
-        database.run {
-            // Room 直接暴露 DAO 方法（需在 MemoDatabase 中声明抽象 getter）
-            memoTokenDao()
-        }
-
-    @Provides
-    @Singleton
     fun provideImageCacheDao(database: MemoDatabase): com.lomo.data.local.dao.ImageCacheDao = database.imageCacheDao()
 
     @Provides
@@ -85,7 +77,6 @@ object DataModule {
         processor: com.lomo.data.util.MemoTextProcessor,
         dataStore: com.lomo.data.local.datastore.LomoDataStore,
         fileCacheDao: com.lomo.data.local.dao.FileCacheDao,
-        tokenDao: com.lomo.data.local.dao.MemoTokenDao,
     ): com.lomo.data.repository.MemoSynchronizer =
         com.lomo.data.repository.MemoSynchronizer(
             dataSource,
@@ -95,7 +86,6 @@ object DataModule {
             processor,
             dataStore,
             fileCacheDao,
-            tokenDao,
         )
 
     /**
@@ -107,7 +97,6 @@ object DataModule {
     fun provideMemoRepositoryImpl(
         dao: MemoDao,
         imageCacheDao: com.lomo.data.local.dao.ImageCacheDao,
-        tokenDao: com.lomo.data.local.dao.MemoTokenDao,
         dataSource: com.lomo.data.source.FileDataSource,
         synchronizer: com.lomo.data.repository.MemoSynchronizer,
         parser: MarkdownParser,
@@ -116,7 +105,6 @@ object DataModule {
         MemoRepositoryImpl(
             dao,
             imageCacheDao,
-            tokenDao,
             dataSource,
             synchronizer,
             parser,

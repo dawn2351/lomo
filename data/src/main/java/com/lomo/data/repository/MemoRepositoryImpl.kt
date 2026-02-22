@@ -25,7 +25,6 @@ class MemoRepositoryImpl
     constructor(
         private val dao: MemoDao,
         private val imageCacheDao: com.lomo.data.local.dao.ImageCacheDao,
-        private val tokenDao: com.lomo.data.local.dao.MemoTokenDao,
         private val dataSource: FileDataSource,
         private val synchronizer: MemoSynchronizer,
         private val parser: MarkdownParser,
@@ -185,7 +184,15 @@ class MemoRepositoryImpl
                                 .filter { it.isNotBlank() }
                                 .distinct()
                                 .take(5)
-                        if (tokens.isEmpty()) dao.searchMemos(trimmed) else tokenDao.searchByTokensAnd(tokens)
+                        if (tokens.isEmpty()) {
+                            dao.searchMemos(trimmed)
+                        } else {
+                            val matchQuery =
+                                tokens.joinToString(" ") { token ->
+                                    "\"${token.replace("\"", "\"\"")}\"*"
+                                }
+                            dao.searchMemosByFts(matchQuery)
+                        }
                     } else {
                         dao.searchMemos(trimmed)
                     }

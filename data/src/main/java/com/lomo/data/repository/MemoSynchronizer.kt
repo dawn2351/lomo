@@ -35,7 +35,6 @@ class MemoSynchronizer
         private val textProcessor: MemoTextProcessor,
         private val dataStore: com.lomo.data.local.datastore.LomoDataStore,
         private val fileCacheDao: com.lomo.data.local.dao.FileCacheDao,
-        private val tokenDao: com.lomo.data.local.dao.MemoTokenDao,
     ) {
         private val mutex = Mutex()
 
@@ -256,19 +255,6 @@ class MemoSynchronizer
                                         com.lomo.data.util.SearchTokenizer
                                             .tokenize(it.content)
                                     dao.insertMemoFts(MemoFtsEntity(it.id, tokenized))
-                                    // 非 FTS 中文模糊：维护 token 表（仅索引未删除的）
-                                    tokenDao.deleteByMemoId(it.id)
-                                    if (!it.isDeleted) {
-                                        val tokens = tokenized.split(' ').filter { s -> s.isNotBlank() }
-                                        if (tokens.isNotEmpty()) {
-                                            val tokenEntities =
-                                                tokens.map { t ->
-                                                    com.lomo.data.local.entity
-                                                        .MemoTokenEntity(t, it.id)
-                                                }
-                                            tokenDao.insertAll(tokenEntities)
-                                        }
-                                    }
                                 }
                             }
 
@@ -286,7 +272,6 @@ class MemoSynchronizer
                                 if (memoIds.isNotEmpty()) {
                                     dao.deleteMemosByIds(memoIds)
                                     dao.deleteMemoFtsByIds(memoIds)
-                                    tokenDao.deleteByMemoIds(memoIds)
                                 }
                                 fileSyncDao.deleteSyncMetadata(filename, isTrash)
                             }
@@ -321,18 +306,6 @@ class MemoSynchronizer
                         com.lomo.data.util.SearchTokenizer
                             .tokenize(it.content)
                     dao.insertMemoFts(MemoFtsEntity(it.id, tokenized))
-                    tokenDao.deleteByMemoId(it.id)
-                    if (!it.isDeleted) {
-                        val tokens = tokenized.split(' ').filter { s -> s.isNotBlank() }
-                        if (tokens.isNotEmpty()) {
-                            tokenDao.insertAll(
-                                tokens.map { t ->
-                                    com.lomo.data.local.entity
-                                        .MemoTokenEntity(t, it.id)
-                                },
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -412,18 +385,6 @@ class MemoSynchronizer
                 com.lomo.data.util.SearchTokenizer
                     .tokenize(entity.content)
             dao.insertMemoFts(MemoFtsEntity(entity.id, tokenizedContent))
-            tokenDao.deleteByMemoId(entity.id)
-            run {
-                val tokens = tokenizedContent.split(' ').filter { it.isNotBlank() }
-                if (tokens.isNotEmpty()) {
-                    tokenDao.insertAll(
-                        tokens.map { t ->
-                            com.lomo.data.local.entity
-                                .MemoTokenEntity(t, entity.id)
-                        },
-                    )
-                }
-            }
         }
 
         suspend fun updateMemo(
@@ -507,18 +468,6 @@ class MemoSynchronizer
                         com.lomo.data.util.SearchTokenizer
                             .tokenize(finalEntity.content)
                     dao.insertMemoFts(MemoFtsEntity(finalEntity.id, tokenizedContent))
-                    tokenDao.deleteByMemoId(finalEntity.id)
-                    run {
-                        val tokens = tokenizedContent.split(' ').filter { it.isNotBlank() }
-                        if (tokens.isNotEmpty()) {
-                            tokenDao.insertAll(
-                                tokens.map { t ->
-                                    com.lomo.data.local.entity
-                                        .MemoTokenEntity(t, finalEntity.id)
-                                },
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -582,7 +531,6 @@ class MemoSynchronizer
                     // 4. Update DB after file operations succeed
                     dao.softDeleteMemo(memo.id)
                     dao.deleteMemoFts(memo.id)
-                    tokenDao.deleteByMemoId(memo.id)
 
                     // Cleanup orphan tags
                     dao.deleteOrphanTags()
@@ -643,18 +591,6 @@ class MemoSynchronizer
                             com.lomo.data.util.SearchTokenizer
                                 .tokenize(entity.content)
                         dao.insertMemoFts(MemoFtsEntity(entity.id, tokenized))
-                        tokenDao.deleteByMemoId(entity.id)
-                        run {
-                            val tokens = tokenized.split(' ').filter { it.isNotBlank() }
-                            if (tokens.isNotEmpty()) {
-                                tokenDao.insertAll(
-                                    tokens.map { t ->
-                                        com.lomo.data.local.entity
-                                            .MemoTokenEntity(t, entity.id)
-                                    },
-                                )
-                            }
-                        }
                     } else {
                         Timber.e("restoreMemo: Failed to find memo block in trash file for ${memo.id}")
                         // Fallback: If removal failed, maybe the note is already gone from file but not DB
@@ -690,7 +626,6 @@ class MemoSynchronizer
                     // Actually remove from DB ONLY IF file operation was successful
                     dao.deleteMemo(MemoEntity.fromDomain(memo))
                     dao.deleteMemoFts(memo.id)
-                    tokenDao.deleteByMemoId(memo.id)
                 } else {
                     Timber.e("deletePermanently: Failed to find block for ${memo.id}")
                 }
