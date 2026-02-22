@@ -16,4 +16,19 @@ interface PendingOpDao {
 
     @Query("SELECT * FROM pending_ops ORDER BY timestamp ASC")
     suspend fun getAll(): List<PendingOpEntity>
+
+    @Query("DELETE FROM pending_ops WHERE timestamp < :minTimestamp")
+    suspend fun deleteOlderThan(minTimestamp: Long)
+
+    @Query(
+        """
+        DELETE FROM pending_ops
+        WHERE id NOT IN (
+            SELECT id FROM pending_ops
+            ORDER BY timestamp DESC, id DESC
+            LIMIT :maxRows
+        )
+        """,
+    )
+    suspend fun trimToLatest(maxRows: Int)
 }

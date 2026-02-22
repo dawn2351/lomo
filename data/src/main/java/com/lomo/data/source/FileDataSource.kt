@@ -178,6 +178,7 @@ class FileDataSourceImpl
                 dataStore.updateImageUri(pathOrUri)
                 dataStore.updateImageDirectory(null)
             } else {
+                dataStore.updateImageDirectory(pathOrUri)
                 dataStore.updateImageUri(null)
             }
         }
