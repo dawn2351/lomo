@@ -62,6 +62,9 @@ interface MemoDao {
     @Query("DELETE FROM lomo_fts WHERE memoId = :memoId")
     suspend fun deleteMemoFts(memoId: String)
 
+    @Query("DELETE FROM lomo_fts WHERE memoId IN (:memoIds)")
+    suspend fun deleteMemoFtsByIds(memoIds: List<String>)
+
     @Query("DELETE FROM lomo_fts")
     suspend fun clearFts()
 
@@ -81,6 +84,9 @@ interface MemoDao {
 
     @Query("DELETE FROM Lomo WHERE id = :id")
     suspend fun deleteMemoById(id: String)
+
+    @Query("DELETE FROM Lomo WHERE id IN (:ids)")
+    suspend fun deleteMemosByIds(ids: List<String>)
 
     @Query("DELETE FROM Lomo")
     suspend fun clearAll()

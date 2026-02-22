@@ -164,8 +164,28 @@ class MemoSynchronizer
                                             }
                                         }
                                     }.awaitAll()
+                                    .filterNotNull()
 
-                            chunkResults.filterNotNull().forEach { (memos, meta) ->
+                            val trashMemoIdsInChunk =
+                                chunkResults
+                                    .flatMap { (memos, _) ->
+                                        memos.map { it.id }
+                                    }.distinct()
+                            val activeMemoIdsInDb =
+                                if (trashMemoIdsInChunk.isNotEmpty()) {
+                                    trashMemoIdsInChunk
+                                        .chunked(500)
+                                        .flatMap { ids ->
+                                            dao.getMemosByIds(ids)
+                                        }.asSequence()
+                                        .filter { !it.isDeleted }
+                                        .map { it.id }
+                                        .toSet()
+                                } else {
+                                    emptySet()
+                                }
+
+                            chunkResults.forEach { (memos, meta) ->
                                 val dateStr = meta.filename.removeSuffix(".md")
 
                                 // NEW: Cross-check against DB to prevent Trash overwriting Main
@@ -174,9 +194,7 @@ class MemoSynchronizer
                                 // The Main version ALWAYS wins.
                                 val filteredMemos =
                                     memos.filter { trashMemo ->
-                                        // Optimization: This usually only happens during a 'Move' collision
-                                        val inDb = dao.getMemo(trashMemo.id)
-                                        inDb == null || inDb.isDeleted
+                                        trashMemo.id !in activeMemoIdsInDb
                                     }
 
                                 trashDatesToReplace.add(dateStr)
@@ -228,9 +246,7 @@ class MemoSynchronizer
                                 val mainIds = deduplicatedMemos.filter { !it.isDeleted }.map { it.id }
                                 if (mainIds.isNotEmpty()) {
                                     // This force-cleans any stale trash records in DB
-                                    mainIds.forEach { id ->
-                                        dao.deleteMemoById(id)
-                                    }
+                                    dao.deleteMemosByIds(mainIds)
                                 }
 
                                 dao.insertMemos(deduplicatedMemos)
@@ -266,10 +282,11 @@ class MemoSynchronizer
                                 // Find all memos that belong to this file/date and delete them
                                 val date = filename.removeSuffix(".md")
                                 val memosInDb = dao.getMemosByDate(date, isTrash)
-                                memosInDb.forEach {
-                                    dao.deleteMemo(it)
-                                    dao.deleteMemoFts(it.id)
-                                    tokenDao.deleteByMemoId(it.id)
+                                val memoIds = memosInDb.map { it.id }
+                                if (memoIds.isNotEmpty()) {
+                                    dao.deleteMemosByIds(memoIds)
+                                    dao.deleteMemoFtsByIds(memoIds)
+                                    tokenDao.deleteByMemoIds(memoIds)
                                 }
                                 fileSyncDao.deleteSyncMetadata(filename, isTrash)
                             }
@@ -278,7 +295,8 @@ class MemoSynchronizer
                             dao.deleteOrphanTags()
                         }
                     } catch (e: Exception) {
-                        Timber.e("MemoSynchronizer", "Error during refresh", e)
+                        Timber.e(e, "Error during refresh")
+                        throw e
                     } finally {
                         _isSyncing.value = false
                     }

@@ -16,6 +16,9 @@ interface MemoTokenDao {
     @Query("DELETE FROM memo_token WHERE memoId = :memoId")
     suspend fun deleteByMemoId(memoId: String)
 
+    @Query("DELETE FROM memo_token WHERE memoId IN (:memoIds)")
+    suspend fun deleteByMemoIds(memoIds: List<String>)
+
     // 简单模糊：token 前缀匹配，或完整包含匹配（按需选择）
     @Query(
         """
