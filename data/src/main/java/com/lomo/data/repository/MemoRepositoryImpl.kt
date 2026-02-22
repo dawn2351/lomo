@@ -349,10 +349,10 @@ class MemoRepositoryImpl
         override fun isLanSharePairingConfigured(): Flow<Boolean> = dataStore.lanSharePairingKeyHex.map { ShareAuthUtils.isValidKeyHex(it) }
 
         override suspend fun setLanSharePairingCode(pairingCode: String) {
-            val keyHex =
-                ShareAuthUtils.deriveKeyHexFromPairingCode(pairingCode)
+            val keyMaterial =
+                ShareAuthUtils.deriveKeyMaterialFromPairingCode(pairingCode)
                     ?: throw IllegalArgumentException("Pairing code must be 6-64 characters")
-            dataStore.updateLanSharePairingKeyHex(keyHex)
+            dataStore.updateLanSharePairingKeyHex(keyMaterial)
         }
 
         override suspend fun clearLanSharePairingCode() {

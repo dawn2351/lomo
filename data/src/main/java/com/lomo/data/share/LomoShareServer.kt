@@ -130,6 +130,9 @@ class LomoShareServer {
                                 call.respond(HttpStatusCode.PreconditionFailed, "Encryption mode mismatch")
                                 return@post
                             }
+                            if (!request.e2eEnabled) {
+                                Timber.tag(TAG).w("Received OPEN mode prepare request (unauthenticated)")
+                            }
                             val validationError = validatePrepareRequest(request)
                             if (validationError != null) {
                                 call.respond(HttpStatusCode.BadRequest, validationError)
@@ -281,6 +284,9 @@ class LomoShareServer {
                                                 part.dispose()
                                                 call.respond(HttpStatusCode.PreconditionFailed, "Encryption mode mismatch")
                                                 return@post
+                                            }
+                                            if (!meta.e2eEnabled) {
+                                                Timber.tag(TAG).w("Received OPEN mode transfer metadata (unauthenticated)")
                                             }
                                             val metaError = validateTransferMetadata(meta)
                                             if (metaError != null) {
@@ -716,12 +722,14 @@ class LomoShareServer {
                 message = "LAN share pairing code is not configured on receiver",
             )
         }
-        val keyHex =
-            pairingKeyHex ?: return AuthValidation(
+        val keyCandidates = ShareAuthUtils.resolveCandidateKeyHexes(pairingKeyHex)
+        if (keyCandidates.isEmpty()) {
+            return AuthValidation(
                 ok = false,
                 status = HttpStatusCode.PreconditionFailed,
                 message = "LAN share pairing code is not configured on receiver",
             )
+        }
         if (!ShareAuthUtils.isTimestampWithinWindow(request.authTimestampMs)) {
             return AuthValidation(false, HttpStatusCode.Unauthorized, "Expired auth timestamp")
         }
@@ -739,13 +747,15 @@ class LomoShareServer {
                 authNonce = request.authNonce,
             )
         val verified =
-            ShareAuthUtils.verifySignature(
-                keyHex = keyHex,
-                payload = payload,
-                providedSignatureHex = request.authSignature,
-            )
-        return if (verified) {
-            AuthValidation(true, keyHex = keyHex)
+            keyCandidates.firstOrNull { candidate ->
+                ShareAuthUtils.verifySignature(
+                    keyHex = candidate,
+                    payload = payload,
+                    providedSignatureHex = request.authSignature,
+                )
+            }
+        return if (verified != null) {
+            AuthValidation(true, keyHex = verified)
         } else {
             AuthValidation(false, HttpStatusCode.Unauthorized, "Invalid auth signature")
         }
@@ -763,12 +773,14 @@ class LomoShareServer {
                 message = "LAN share pairing code is not configured on receiver",
             )
         }
-        val keyHex =
-            pairingKeyHex ?: return AuthValidation(
+        val keyCandidates = ShareAuthUtils.resolveCandidateKeyHexes(pairingKeyHex)
+        if (keyCandidates.isEmpty()) {
+            return AuthValidation(
                 ok = false,
                 status = HttpStatusCode.PreconditionFailed,
                 message = "LAN share pairing code is not configured on receiver",
             )
+        }
         if (!ShareAuthUtils.isTimestampWithinWindow(metadata.authTimestampMs)) {
             return AuthValidation(false, HttpStatusCode.Unauthorized, "Expired auth timestamp")
         }
@@ -786,13 +798,15 @@ class LomoShareServer {
                 authNonce = metadata.authNonce,
             )
         val verified =
-            ShareAuthUtils.verifySignature(
-                keyHex = keyHex,
-                payload = payload,
-                providedSignatureHex = metadata.authSignature,
-            )
-        return if (verified) {
-            AuthValidation(true, keyHex = keyHex)
+            keyCandidates.firstOrNull { candidate ->
+                ShareAuthUtils.verifySignature(
+                    keyHex = candidate,
+                    payload = payload,
+                    providedSignatureHex = metadata.authSignature,
+                )
+            }
+        return if (verified != null) {
+            AuthValidation(true, keyHex = verified)
         } else {
             AuthValidation(false, HttpStatusCode.Unauthorized, "Invalid auth signature")
         }

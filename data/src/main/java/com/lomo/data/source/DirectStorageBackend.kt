@@ -140,7 +140,8 @@ class DirectStorageBackend(
         withContext(Dispatchers.IO) {
             // Check if it's a file URI
             if (uri.scheme == "file") {
-                val file = File(uri.path!!)
+                val path = uri.path ?: return@withContext null
+                val file = File(path)
                 if (file.exists()) file.readText() else null
             } else {
                 null

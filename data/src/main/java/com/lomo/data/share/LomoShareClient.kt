@@ -54,6 +54,11 @@ class LomoShareClient(
             }
         }
 
+    data class PreparedSession(
+        val sessionToken: String?,
+        val keyHex: String?,
+    )
+
     /**
      * Phase 1: Send prepare request and wait for receiver's decision.
      * @return session token when accepted, null when rejected/timeout.
@@ -65,70 +70,16 @@ class LomoShareClient(
         senderName: String,
         attachments: List<ShareAttachmentInfo>,
         e2eEnabled: Boolean,
-    ): Result<String?> {
+    ): Result<PreparedSession> {
         return try {
             val attachmentNames = attachments.map { it.name.trim() }
-            val payloadContent: String
-            val contentNonce: String
-            val authTimestampMs: Long
-            val authNonce: String
-            val authSignature: String
 
             if (e2eEnabled) {
-                val pairingKeyHex = getPairingKeyHex()?.trim()
-                if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
+                val keyCandidates = ShareAuthUtils.resolveCandidateKeyHexes(getPairingKeyHex()?.trim())
+                if (keyCandidates.isEmpty()) {
                     return Result.failure(Exception("LAN share pairing code is not configured"))
                 }
-                val keyHex = pairingKeyHex ?: return Result.failure(Exception("LAN share pairing code is not configured"))
-
-                val encryptedContent =
-                    ShareCryptoUtils.encryptText(
-                        keyHex = keyHex,
-                        plaintext = content,
-                        aad = "memo-content",
-                    )
-                payloadContent = encryptedContent.ciphertextBase64
-                contentNonce = encryptedContent.nonceBase64
-                authTimestampMs = System.currentTimeMillis()
-                authNonce = ShareAuthUtils.generateNonce()
-                val signaturePayload =
-                    ShareAuthUtils.buildPreparePayloadToSign(
-                        senderName = senderName,
-                        encryptedContent = payloadContent,
-                        contentNonce = contentNonce,
-                        timestamp = timestamp,
-                        attachmentNames = attachmentNames,
-                        authTimestampMs = authTimestampMs,
-                        authNonce = authNonce,
-                    )
-                authSignature =
-                    ShareAuthUtils.signPayloadHex(
-                        keyHex = keyHex,
-                        payload = signaturePayload,
-                    )
-            } else {
-                payloadContent = content
-                contentNonce = ""
-                authTimestampMs = 0L
-                authNonce = ""
-                authSignature = ""
             }
-
-            val request =
-                LomoShareServer.PrepareRequest(
-                    senderName = senderName,
-                    encryptedContent = payloadContent,
-                    contentNonce = contentNonce,
-                    timestamp = timestamp,
-                    e2eEnabled = e2eEnabled,
-                    attachments =
-                        attachments.map {
-                            LomoShareServer.AttachmentInfo(name = it.name, type = it.type, size = it.size)
-                        },
-                    authTimestampMs = authTimestampMs,
-                    authNonce = authNonce,
-                    authSignature = authSignature,
-                )
 
             // Step 0: Check connectivity with a quick ping (3s timeout)
             // If device is unreachable, fail fast instead of waiting 70s
@@ -141,24 +92,78 @@ class LomoShareClient(
                 return Result.failure(Exception("Device unreachable"))
             }
 
-            val response =
-                client.post("http://${device.host}:${device.port}/share/prepare") {
-                    contentType(ContentType.Application.Json)
-                    setBody(json.encodeToString(LomoShareServer.PrepareRequest.serializer(), request))
+            if (!e2eEnabled) {
+                val request =
+                    buildPrepareRequest(
+                        senderName = senderName,
+                        content = content,
+                        timestamp = timestamp,
+                        attachments = attachments,
+                        attachmentNames = attachmentNames,
+                        e2eEnabled = false,
+                        keyHex = null,
+                    )
+                val response =
+                    client.post("http://${device.host}:${device.port}/share/prepare") {
+                        contentType(ContentType.Application.Json)
+                        setBody(json.encodeToString(LomoShareServer.PrepareRequest.serializer(), request))
+                    }
+
+                if (response.status != HttpStatusCode.OK) {
+                    val errorBody = response.bodyAsText()
+                    val errorMessage = errorBody.ifBlank { "Prepare failed (${response.status.value})" }
+                    return Result.failure(Exception(errorMessage))
                 }
 
-            if (response.status != HttpStatusCode.OK) {
-                val errorBody = response.bodyAsText()
-                val errorMessage = errorBody.ifBlank { "Prepare failed (${response.status.value})" }
-                return Result.failure(Exception(errorMessage))
-            }
-
-            val body = json.decodeFromString<LomoShareServer.PrepareResponse>(response.bodyAsText())
-            Timber.tag(TAG).d("Prepare response: accepted=${body.accepted}, hasToken=${!body.sessionToken.isNullOrBlank()}")
-            if (body.accepted && body.sessionToken.isNullOrBlank()) {
-                Result.failure(Exception("Invalid prepare response: missing session token"))
+                val body = json.decodeFromString<LomoShareServer.PrepareResponse>(response.bodyAsText())
+                Timber.tag(TAG).d("Prepare response: accepted=${body.accepted}, hasToken=${!body.sessionToken.isNullOrBlank()}")
+                if (body.accepted && body.sessionToken.isNullOrBlank()) {
+                    Result.failure(Exception("Invalid prepare response: missing session token"))
+                } else {
+                    Result.success(PreparedSession(sessionToken = body.sessionToken, keyHex = null))
+                }
             } else {
-                Result.success(body.sessionToken)
+                val keyCandidates = ShareAuthUtils.resolveCandidateKeyHexes(getPairingKeyHex()?.trim())
+                var lastError: Exception? = null
+
+                for ((index, keyHex) in keyCandidates.withIndex()) {
+                    val request =
+                        buildPrepareRequest(
+                            senderName = senderName,
+                            content = content,
+                            timestamp = timestamp,
+                            attachments = attachments,
+                            attachmentNames = attachmentNames,
+                            e2eEnabled = true,
+                            keyHex = keyHex,
+                        )
+
+                    val response =
+                        client.post("http://${device.host}:${device.port}/share/prepare") {
+                            contentType(ContentType.Application.Json)
+                            setBody(json.encodeToString(LomoShareServer.PrepareRequest.serializer(), request))
+                        }
+                    if (response.status == HttpStatusCode.OK) {
+                        val body = json.decodeFromString<LomoShareServer.PrepareResponse>(response.bodyAsText())
+                        Timber.tag(TAG).d("Prepare response: accepted=${body.accepted}, hasToken=${!body.sessionToken.isNullOrBlank()}")
+                        if (body.accepted && body.sessionToken.isNullOrBlank()) {
+                            return Result.failure(Exception("Invalid prepare response: missing session token"))
+                        }
+                        return Result.success(PreparedSession(sessionToken = body.sessionToken, keyHex = keyHex))
+                    }
+
+                    val errorBody = response.bodyAsText()
+                    val errorMessage = errorBody.ifBlank { "Prepare failed (${response.status.value})" }
+                    lastError = Exception(errorMessage)
+                    val canRetryAuth = response.status == HttpStatusCode.Unauthorized || response.status == HttpStatusCode.Forbidden
+                    if (canRetryAuth && index < keyCandidates.lastIndex) {
+                        Timber.tag(TAG).w("Prepare auth failed with key candidate #$index, retrying with compatibility key")
+                        continue
+                    }
+                    return Result.failure(lastError)
+                }
+
+                Result.failure(lastError ?: Exception("Prepare failed"))
             }
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Prepare request failed")
@@ -177,6 +182,7 @@ class LomoShareClient(
         sessionToken: String,
         attachmentUris: Map<String, Uri>,
         e2eEnabled: Boolean,
+        e2eKeyHex: String? = null,
     ): Boolean {
         return try {
             data class TransferAttachment(
@@ -194,12 +200,13 @@ class LomoShareClient(
             val authSignature: String
 
             if (e2eEnabled) {
-                val pairingKeyHex = getPairingKeyHex()?.trim()
-                if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
+                val keyHex =
+                    ShareAuthUtils.resolvePrimaryKeyHex(e2eKeyHex)
+                        ?: ShareAuthUtils.resolvePrimaryKeyHex(getPairingKeyHex()?.trim())
+                if (keyHex == null) {
                     Timber.tag(TAG).w("LAN share pairing code is not configured")
                     return false
                 }
-                val keyHex = pairingKeyHex ?: return false
                 val encryptedContent =
                     ShareCryptoUtils.encryptText(
                         keyHex = keyHex,
@@ -327,6 +334,74 @@ class LomoShareClient(
 
     fun close() {
         client.close()
+    }
+
+    private fun buildPrepareRequest(
+        senderName: String,
+        content: String,
+        timestamp: Long,
+        attachments: List<ShareAttachmentInfo>,
+        attachmentNames: List<String>,
+        e2eEnabled: Boolean,
+        keyHex: String?,
+    ): LomoShareServer.PrepareRequest {
+        val payloadContent: String
+        val contentNonce: String
+        val authTimestampMs: Long
+        val authNonce: String
+        val authSignature: String
+
+        if (e2eEnabled) {
+            val resolvedKey =
+                keyHex
+                    ?: throw IllegalArgumentException("Missing E2E key")
+            val encryptedContent =
+                ShareCryptoUtils.encryptText(
+                    keyHex = resolvedKey,
+                    plaintext = content,
+                    aad = "memo-content",
+                )
+            payloadContent = encryptedContent.ciphertextBase64
+            contentNonce = encryptedContent.nonceBase64
+            authTimestampMs = System.currentTimeMillis()
+            authNonce = ShareAuthUtils.generateNonce()
+            val signaturePayload =
+                ShareAuthUtils.buildPreparePayloadToSign(
+                    senderName = senderName,
+                    encryptedContent = payloadContent,
+                    contentNonce = contentNonce,
+                    timestamp = timestamp,
+                    attachmentNames = attachmentNames,
+                    authTimestampMs = authTimestampMs,
+                    authNonce = authNonce,
+                )
+            authSignature =
+                ShareAuthUtils.signPayloadHex(
+                    keyHex = resolvedKey,
+                    payload = signaturePayload,
+                )
+        } else {
+            payloadContent = content
+            contentNonce = ""
+            authTimestampMs = 0L
+            authNonce = ""
+            authSignature = ""
+        }
+
+        return LomoShareServer.PrepareRequest(
+            senderName = senderName,
+            encryptedContent = payloadContent,
+            contentNonce = contentNonce,
+            timestamp = timestamp,
+            e2eEnabled = e2eEnabled,
+            attachments =
+                attachments.map {
+                    LomoShareServer.AttachmentInfo(name = it.name, type = it.type, size = it.size)
+                },
+            authTimestampMs = authTimestampMs,
+            authNonce = authNonce,
+            authSignature = authSignature,
+        )
     }
 
     private fun readUriBytes(

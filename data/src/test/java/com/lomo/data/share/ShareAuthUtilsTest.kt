@@ -6,22 +6,45 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.security.MessageDigest
 
 class ShareAuthUtilsTest {
     @Test
-    fun `deriveKeyHexFromPairingCode returns stable 64-char hex`() {
-        val key1 = ShareAuthUtils.deriveKeyHexFromPairingCode("shared-secret-123")
-        val key2 = ShareAuthUtils.deriveKeyHexFromPairingCode("shared-secret-123")
+    fun `deriveKeyMaterialFromPairingCode returns stable versioned material`() {
+        val material1 = ShareAuthUtils.deriveKeyMaterialFromPairingCode("shared-secret-123")
+        val material2 = ShareAuthUtils.deriveKeyMaterialFromPairingCode("shared-secret-123")
 
-        assertNotNull(key1)
-        assertEquals(key1, key2)
-        assertTrue(key1!!.matches(Regex("^[0-9a-f]{64}$")))
+        assertNotNull(material1)
+        assertEquals(material1, material2)
+        assertTrue(material1!!.startsWith("v2:"))
+
+        val keySet = ShareAuthUtils.resolveKeySet(material1)
+        assertNotNull(keySet)
+        assertTrue(keySet!!.primaryKeyHex.matches(Regex("^[0-9a-f]{64}$")))
+        assertEquals(2, keySet.candidateKeyHexes.size)
+        assertTrue(keySet.candidateKeyHexes.all { it.matches(Regex("^[0-9a-f]{64}$")) })
     }
 
     @Test
-    fun `deriveKeyHexFromPairingCode rejects invalid lengths`() {
-        assertNull(ShareAuthUtils.deriveKeyHexFromPairingCode("short"))
-        assertNull(ShareAuthUtils.deriveKeyHexFromPairingCode("x".repeat(65)))
+    fun `deriveKeyMaterialFromPairingCode rejects invalid lengths`() {
+        assertNull(ShareAuthUtils.deriveKeyMaterialFromPairingCode("short"))
+        assertNull(ShareAuthUtils.deriveKeyMaterialFromPairingCode("x".repeat(65)))
+    }
+
+    @Test
+    fun `resolveKeySet supports v2 and legacy formats`() {
+        val pairingCode = "pairing-code-legacy-compat"
+        val material = ShareAuthUtils.deriveKeyMaterialFromPairingCode(pairingCode)
+        val set = ShareAuthUtils.resolveKeySet(material)
+        assertNotNull(set)
+        val expectedLegacy = legacyKey(pairingCode)
+        assertTrue(set!!.candidateKeyHexes.contains(expectedLegacy))
+
+        val legacyOnly = legacyKey("legacy-only")
+        val legacySet = ShareAuthUtils.resolveKeySet(legacyOnly)
+        assertNotNull(legacySet)
+        assertEquals(legacyOnly, legacySet!!.primaryKeyHex)
+        assertEquals(listOf(legacyOnly), legacySet.candidateKeyHexes)
     }
 
     @Test
@@ -74,4 +97,10 @@ class ShareAuthUtilsTest {
         assertTrue(ShareAuthUtils.isTimestampWithinWindow(1_000L, nowMs = 1_500L, windowMs = 1_000L))
         assertFalse(ShareAuthUtils.isTimestampWithinWindow(1_000L, nowMs = 2_500L, windowMs = 1_000L))
     }
+
+    private fun legacyKey(pairingCode: String): String =
+        MessageDigest
+            .getInstance("SHA-256")
+            .digest("lomo-lan-share-v1:${pairingCode.trim()}".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
 }

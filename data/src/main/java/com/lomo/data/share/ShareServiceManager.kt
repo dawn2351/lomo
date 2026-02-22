@@ -214,6 +214,9 @@ class ShareServiceManager
             withContext(Dispatchers.IO) {
                 try {
                     val e2eEnabled = dataStore.lanShareE2eEnabled.first()
+                    if (!e2eEnabled) {
+                        Timber.tag(TAG).w("LAN share is in OPEN mode: transfer is unauthenticated")
+                    }
                     if (requiresPairingBeforeSend()) {
                         val message = "Please set an end-to-end encryption password first"
                         _transferState.value = ShareTransferState.Error(message)
@@ -269,7 +272,8 @@ class ShareServiceManager
                         return@withContext Result.failure(error ?: Exception("Connection failed"))
                     }
 
-                    val sessionToken = result.getOrNull()
+                    val prepared = result.getOrNull()
+                    val sessionToken = prepared?.sessionToken
                     if (sessionToken.isNullOrBlank()) {
                         _transferState.value = ShareTransferState.Error("Transfer rejected by ${device.name}")
                         return@withContext Result.failure(Exception("Transfer rejected"))
@@ -285,6 +289,7 @@ class ShareServiceManager
                             sessionToken = sessionToken,
                             attachmentUris = resolvedAttachmentUris,
                             e2eEnabled = e2eEnabled,
+                            e2eKeyHex = prepared.keyHex,
                         )
 
                     if (success) {
@@ -323,10 +328,10 @@ class ShareServiceManager
 
         suspend fun setLanSharePairingCode(pairingCode: String) {
             val normalized = pairingCode.trim()
-            val keyHex =
-                ShareAuthUtils.deriveKeyHexFromPairingCode(normalized)
+            val keyMaterial =
+                ShareAuthUtils.deriveKeyMaterialFromPairingCode(normalized)
                     ?: throw IllegalArgumentException("Pairing code must be 6-64 characters")
-            dataStore.updateLanSharePairingKeyHex(keyHex)
+            dataStore.updateLanSharePairingKeyHex(keyMaterial)
             pairingCodeInputState.value = normalized
         }
 
