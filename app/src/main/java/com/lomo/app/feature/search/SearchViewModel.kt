@@ -17,6 +17,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -71,6 +72,8 @@ class SearchViewModel
                     } else {
                         repository.searchMemosList(query)
                     }
+                }.catch {
+                    emit(emptyList())
                 }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         @OptIn(ExperimentalCoroutinesApi::class)

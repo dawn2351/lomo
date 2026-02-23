@@ -90,10 +90,7 @@ class MemoRepositoryImpl
                     if (tokens.isEmpty()) {
                         dao.searchMemosFlow(trimmed)
                     } else {
-                        val matchQuery =
-                            tokens.joinToString(" ") { token ->
-                                "\"${token.replace("\"", "\"\"")}\"*"
-                            }
+                        val matchQuery = tokens.joinToString(" OR ") { token -> "$token*" }
                         dao.searchMemosByFtsFlow(matchQuery)
                     }
                 } else {
