@@ -5,7 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.lomo.app.feature.memo.MemoActionDelegate
 import com.lomo.app.feature.memo.MemoFlowProcessor
 import com.lomo.app.feature.preferences.AppPreferencesState
-import com.lomo.app.feature.preferences.observeAppPreferences
+import com.lomo.app.feature.preferences.activeDayCountState
+import com.lomo.app.feature.preferences.appPreferencesState
 import com.lomo.app.provider.ImageMapProvider
 import com.lomo.domain.model.Memo
 import com.lomo.domain.repository.MemoRepository
@@ -50,17 +51,11 @@ class SearchViewModel
 
         val imageMap: StateFlow<Map<String, android.net.Uri>> = imageMapProvider.imageMap
 
-        private val defaultPreferences = AppPreferencesState.defaults()
-
         val appPreferences: StateFlow<AppPreferencesState> =
-            settingsRepository
-                .observeAppPreferences()
-                .stateInViewModel(viewModelScope, defaultPreferences)
+            settingsRepository.appPreferencesState(viewModelScope)
 
         val activeDayCount: StateFlow<Int> =
-            repository
-                .getActiveDayCount()
-                .stateInViewModel(viewModelScope, 0)
+            repository.activeDayCountState(viewModelScope)
 
         @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
         val searchResults: StateFlow<List<Memo>> =

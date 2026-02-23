@@ -1,8 +1,12 @@
 package com.lomo.app.feature.preferences
 
 import com.lomo.data.util.PreferenceKeys
+import com.lomo.domain.repository.MemoRepository
 import com.lomo.domain.repository.SettingsRepository
+import com.lomo.ui.util.stateInViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 
 /**
@@ -78,6 +82,14 @@ fun SettingsRepository.observeAppPreferences(): Flow<AppPreferencesState> =
             shareCardShowBrand = share.shareCardShowBrand,
         )
     }
+
+fun SettingsRepository.appPreferencesState(scope: CoroutineScope): StateFlow<AppPreferencesState> =
+    observeAppPreferences()
+        .stateInViewModel(scope, AppPreferencesState.defaults())
+
+fun MemoRepository.activeDayCountState(scope: CoroutineScope): StateFlow<Int> =
+    getActiveDayCount()
+        .stateInViewModel(scope, 0)
 
 private data class BasePreferences(
     val dateFormat: String,

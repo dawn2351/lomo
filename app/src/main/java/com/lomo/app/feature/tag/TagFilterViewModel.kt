@@ -6,7 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.lomo.app.feature.memo.MemoActionDelegate
 import com.lomo.app.feature.memo.MemoFlowProcessor
 import com.lomo.app.feature.preferences.AppPreferencesState
-import com.lomo.app.feature.preferences.observeAppPreferences
+import com.lomo.app.feature.preferences.activeDayCountState
+import com.lomo.app.feature.preferences.appPreferencesState
 import com.lomo.app.provider.ImageMapProvider
 import com.lomo.domain.model.Memo
 import com.lomo.domain.repository.MemoRepository
@@ -42,17 +43,11 @@ class TagFilterViewModel
                 .getImageDirectory()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-        private val defaultPreferences = AppPreferencesState.defaults()
-
         val appPreferences: StateFlow<AppPreferencesState> =
-            settingsRepository
-                .observeAppPreferences()
-                .stateInViewModel(viewModelScope, defaultPreferences)
+            settingsRepository.appPreferencesState(viewModelScope)
 
         val activeDayCount: StateFlow<Int> =
-            memoRepository
-                .getActiveDayCount()
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+            memoRepository.activeDayCountState(viewModelScope)
 
         val rootDir: StateFlow<String?> = rootDirectory
         val imageDir: StateFlow<String?> = imageDirectory
