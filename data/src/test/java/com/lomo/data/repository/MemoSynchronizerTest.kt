@@ -60,13 +60,17 @@ class MemoSynchronizerTest {
                 processor,
                 dataStore,
             )
-
-        synchronizer =
-            MemoSynchronizer(
+        val refreshEngine =
+            MemoRefreshEngine(
                 fileDataSource,
                 memoDao,
                 localFileStateDao,
                 parser,
+            )
+
+        synchronizer =
+            MemoSynchronizer(
+                refreshEngine,
                 mutationHandler,
             )
     }
