@@ -7,6 +7,7 @@ import com.lomo.domain.model.Memo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapLatest
 import javax.inject.Inject
 
@@ -29,14 +30,16 @@ class MemoFlowProcessor
                     imageDirectory = imageDir,
                     imageMap = currentImageMap,
                 )
-            }.mapLatest { context ->
-                mapper.mapToUiModels(
-                    memos = context.memos,
-                    rootPath = context.rootDirectory,
-                    imagePath = context.imageDirectory,
-                    imageMap = context.imageMap,
-                )
-            }
+            }.distinctUntilChanged()
+                .mapLatest { context ->
+                    if (context.memos.isEmpty()) return@mapLatest emptyList()
+                    mapper.mapToUiModels(
+                        memos = context.memos,
+                        rootPath = context.rootDirectory,
+                        imagePath = context.imageDirectory,
+                        imageMap = context.imageMap,
+                    )
+                }
 
         @OptIn(ExperimentalCoroutinesApi::class)
         fun mapMemoSnapshot(
@@ -52,14 +55,16 @@ class MemoFlowProcessor
                     imageDirectory = imageDir,
                     imageMap = currentImageMap,
                 )
-            }.mapLatest { context ->
-                mapper.mapToUiModels(
-                    memos = context.memos,
-                    rootPath = context.rootDirectory,
-                    imagePath = context.imageDirectory,
-                    imageMap = context.imageMap,
-                )
-            }
+            }.distinctUntilChanged()
+                .mapLatest { context ->
+                    if (context.memos.isEmpty()) return@mapLatest emptyList()
+                    mapper.mapToUiModels(
+                        memos = context.memos,
+                        rootPath = context.rootDirectory,
+                        imagePath = context.imageDirectory,
+                        imageMap = context.imageMap,
+                    )
+                }
 
         private data class MappingContext(
             val memos: List<Memo>,
