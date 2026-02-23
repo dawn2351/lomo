@@ -18,7 +18,32 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 import android.util.TypedValue
+import android.view.View
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.lomo.app.R
 import java.io.File
@@ -178,6 +203,89 @@ object ShareUtils {
     }
 
     private fun createMemoCardBitmap(
+        context: Context,
+        content: String,
+        title: String?,
+        config: ShareCardConfig,
+    ): Bitmap =
+        runCatching {
+            createMemoCardBitmapWithCompose(
+                context = context,
+                content = content,
+                title = title,
+                config = config,
+            )
+        }.getOrElse {
+            createMemoCardBitmapLegacy(
+                context = context,
+                content = content,
+                title = title,
+                config = config,
+            )
+        }
+
+    private fun createMemoCardBitmapWithCompose(
+        context: Context,
+        content: String,
+        title: String?,
+        config: ShareCardConfig,
+    ): Bitmap {
+        val resources = context.resources
+        val tags = buildShareTags(config.tags, content)
+        val bodyTextWithoutTags = removeInlineTags(content, tags)
+        val renderedMarkdownText = renderMarkdownForShare(context, bodyTextWithoutTags)
+        val safeText =
+            renderedMarkdownText
+                .trim()
+                .ifEmpty { context.getString(R.string.app_name) }
+                .let {
+                    if (it.length <= MAX_SHARE_CONTENT_CHARS) {
+                        it
+                    } else {
+                        it.take(MAX_SHARE_CONTENT_CHARS) + "\n…"
+                    }
+                }
+        val palette = resolvePalette(config.style)
+        val createdAtMillis = config.timestampMillis ?: System.currentTimeMillis()
+        val createdAtText = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(createdAtMillis))
+        val activeDayCountText =
+            config.activeDayCount
+                ?.takeIf { it > 0 }
+                ?.let { dayCount ->
+                    context.resources.getQuantityString(R.plurals.share_card_recorded_days, dayCount, dayCount)
+                }.orEmpty()
+        val showFooter = config.showTime || activeDayCountText.isNotBlank()
+
+        val canvasWidth = (resources.displayMetrics.widthPixels.coerceAtLeast(720) * 0.9f).toInt()
+        val composeView =
+            ComposeView(context).apply {
+                setContent {
+                    ShareCardLayout(
+                        title = title,
+                        bodyText = safeText,
+                        tags = tags,
+                        showTime = config.showTime,
+                        createdAtText = createdAtText,
+                        activeDayCountText = activeDayCountText,
+                        showFooter = showFooter,
+                        palette = palette,
+                    )
+                }
+            }
+
+        val widthSpec = View.MeasureSpec.makeMeasureSpec(canvasWidth, View.MeasureSpec.EXACTLY)
+        val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        composeView.measure(widthSpec, heightSpec)
+        val measuredHeight = composeView.measuredHeight.coerceAtLeast((resources.displayMetrics.density * 220f).toInt())
+        composeView.layout(0, 0, canvasWidth, measuredHeight)
+
+        return Bitmap.createBitmap(canvasWidth, measuredHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
+            val canvas = Canvas(bitmap)
+            composeView.draw(canvas)
+        }
+    }
+
+    private fun createMemoCardBitmapLegacy(
         context: Context,
         content: String,
         title: String?,
@@ -510,6 +618,118 @@ object ShareUtils {
         }
 
         return bitmap
+    }
+
+    @Composable
+    private fun ShareCardLayout(
+        title: String?,
+        bodyText: String,
+        tags: List<String>,
+        showTime: Boolean,
+        createdAtText: String,
+        activeDayCountText: String,
+        showFooter: Boolean,
+        palette: ShareCardPalette,
+    ) {
+        val bodyTextSize =
+            when {
+                bodyText.length <= 32 -> 27.sp
+                bodyText.length <= 88 -> 22.sp
+                bodyText.length <= 180 -> 18.sp
+                else -> 16.sp
+            }
+
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush =
+                            Brush.linearGradient(
+                                colors =
+                                    listOf(
+                                        Color(palette.bgStart),
+                                        Color(palette.bgEnd),
+                                    ),
+                            ),
+                    ).padding(24.dp),
+        ) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 330.dp)
+                        .border(
+                            width = 1.dp,
+                            color = Color(palette.cardBorder),
+                            shape = RoundedCornerShape(28.dp),
+                        ).background(
+                            color = Color(palette.card),
+                            shape = RoundedCornerShape(28.dp),
+                        ).padding(26.dp),
+            ) {
+                if (tags.isNotEmpty()) {
+                    Text(
+                        text = tags.take(6).joinToString(separator = "   ") { "#$it" },
+                        color = Color(palette.tagText),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
+                if (!title.isNullOrBlank()) {
+                    Text(
+                        text = title,
+                        color = Color(palette.secondaryText),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                Text(
+                    text = bodyText,
+                    color = Color(palette.bodyText),
+                    fontSize = bodyTextSize,
+                    lineHeight = (bodyTextSize.value * 1.32f).sp,
+                    fontWeight = FontWeight.Medium,
+                )
+
+                if (showFooter) {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    HorizontalDivider(color = Color(palette.divider))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (showTime) {
+                            Text(
+                                text = createdAtText,
+                                color = Color(palette.secondaryText),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+
+                        if (activeDayCountText.isNotBlank()) {
+                            Text(
+                                text = activeDayCountText,
+                                color = Color(palette.secondaryText),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun buildShareTags(
