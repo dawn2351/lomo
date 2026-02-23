@@ -152,13 +152,19 @@ class MainViewModelTest {
             repository = repository,
             settingsRepository = settingsRepository,
             mediaRepository = mediaRepository,
-            dataStore = dataStore,
             savedStateHandle = savedStateHandle,
             mapper = mapper,
             imageMapProvider = imageMapProvider,
             getFilteredMemosUseCase = getFilteredMemosUseCase,
-            audioPlayerManager = audioPlayerManager,
-            updateManager = updateManager,
             memoMutator = memoMutator,
+            startupCoordinator =
+                MainStartupCoordinator(
+                    repository = repository,
+                    mediaRepository = mediaRepository,
+                    settingsRepository = settingsRepository,
+                    dataStore = dataStore,
+                    audioPlayerManager = audioPlayerManager,
+                    updateManager = updateManager,
+                ),
         )
 }

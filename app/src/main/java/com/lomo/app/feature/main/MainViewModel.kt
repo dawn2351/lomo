@@ -3,7 +3,6 @@ package com.lomo.app.feature.main
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.lomo.app.BuildConfig
 import com.lomo.app.feature.preferences.AppPreferencesState
 import com.lomo.app.feature.preferences.observeAppPreferences
 import com.lomo.app.provider.ImageMapProvider
@@ -18,8 +17,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -27,7 +24,6 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
@@ -37,14 +33,12 @@ class MainViewModel
         private val repository: MemoRepository,
         private val settingsRepository: SettingsRepository,
         private val mediaRepository: com.lomo.domain.repository.MediaRepository,
-        private val dataStore: com.lomo.data.local.datastore.LomoDataStore,
         private val savedStateHandle: SavedStateHandle,
         val mapper: MemoUiMapper,
         private val imageMapProvider: ImageMapProvider,
         private val getFilteredMemosUseCase: com.lomo.domain.usecase.GetFilteredMemosUseCase,
-        private val audioPlayerManager: com.lomo.ui.media.AudioPlayerManager,
-        private val updateManager: com.lomo.app.feature.update.UpdateManager,
         private val memoMutator: MainMemoMutator,
+        private val startupCoordinator: MainStartupCoordinator,
     ) : ViewModel() {
         private val _updateUrl = MutableStateFlow<String?>(null)
         val updateUrl: StateFlow<String?> = _updateUrl
@@ -56,19 +50,14 @@ class MainViewModel
         fun checkForUpdates() {
             viewModelScope.launch {
                 try {
-                    // First check if enabled
-                    val enabled = settingsRepository.isCheckUpdatesOnStartupEnabled().first()
-                    if (enabled) {
-                        val info = updateManager.checkForUpdatesInfo()
-                        if (info != null) {
-                            _updateUrl.value = info.htmlUrl
-                            _updateVersion.value = info.version
-                            _updateReleaseNotes.value = info.releaseNotes
-                        }
+                    val info = startupCoordinator.checkForUpdatesIfEnabled()
+                    if (info != null) {
+                        _updateUrl.value = info.url
+                        _updateVersion.value = info.version
+                        _updateReleaseNotes.value = info.releaseNotes
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Ignore update check errors
-                    e.printStackTrace()
                 }
             }
         }
@@ -373,43 +362,32 @@ class MainViewModel
             // First get initial value synchronously, then listen for subsequent updates
             viewModelScope.launch {
                 // Step 1: Get initial value and set state immediately
-                val initialDir = repository.getRootDirectoryOnce()
-                _rootDirectory.value = initialDir
-                audioPlayerManager.setRootDirectory(initialDir)
-                _uiState.value =
-                    if (initialDir == null) {
-                        MainScreenState.NoDirectory
-                    } else {
-                        MainScreenState.Ready(hasData = true)
-                    }
-
-                resyncCachesIfAppVersionChanged(initialDir)
+                val initialDir = startupCoordinator.initializeRootDirectory()
+                updateRootDirectoryUiState(initialDir)
 
                 // Step 2: Listen for subsequent updates (drop first to avoid duplicate)
-                repository
-                    .getRootDirectory()
-                    .drop(1)
+                startupCoordinator
+                    .observeRootDirectoryChanges()
                     .collect { dir ->
-                        _rootDirectory.value = dir
-                        audioPlayerManager.setRootDirectory(dir)
-                        _uiState.value =
-                            if (dir == null) {
-                                MainScreenState.NoDirectory
-                            } else {
-                                MainScreenState.Ready(hasData = true)
-                            }
+                        updateRootDirectoryUiState(dir)
                     }
             }
 
             // Voice directory collector - pass to AudioPlayerManager for voice file resolution
-            viewModelScope.launch {
-                repository.getVoiceDirectory().collect { voiceDir ->
-                    audioPlayerManager.setVoiceDirectory(voiceDir)
-                }
-            }
+            startupCoordinator.observeVoiceDirectoryChanges().launchIn(viewModelScope)
 
             // Initial image load
             loadImageMap()
+        }
+
+        private fun updateRootDirectoryUiState(directory: String?) {
+            _rootDirectory.value = directory
+            _uiState.value =
+                if (directory == null) {
+                    MainScreenState.NoDirectory
+                } else {
+                    MainScreenState.Ready(hasData = true)
+                }
         }
 
         private fun loadImageMap() {
@@ -444,27 +422,6 @@ class MainViewModel
                     // Best effort refresh.
                 }
             }
-        }
-
-        private suspend fun resyncCachesIfAppVersionChanged(rootDir: String?) {
-            val currentVersion = "${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})"
-            val lastVersion = dataStore.getLastAppVersionOnce()
-            if (lastVersion == currentVersion) return
-
-            if (rootDir != null) {
-                try {
-                    repository.refreshMemos()
-                } catch (_: Exception) {
-                    // best-effort refresh
-                }
-                try {
-                    mediaRepository.syncImageCache()
-                } catch (_: Exception) {
-                    // best-effort cache rebuild
-                }
-            }
-
-            dataStore.updateLastAppVersion(currentVersion)
         }
 
         private val defaultPreferences = AppPreferencesState.defaults()
