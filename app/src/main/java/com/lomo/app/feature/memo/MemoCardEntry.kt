@@ -1,6 +1,7 @@
 package com.lomo.app.feature.memo
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import com.lomo.app.feature.main.MemoUiModel
 import com.lomo.domain.model.Memo
 import com.lomo.ui.component.card.MemoCard
@@ -14,7 +15,11 @@ fun MemoCardEntry(
     doubleTapEditEnabled: Boolean,
     onMemoEdit: (Memo) -> Unit,
     onShowMenu: (MemoMenuState) -> Unit,
+    onMemoClick: ((Memo) -> Unit)? = null,
+    onTagClick: (String) -> Unit = {},
+    onTodoClick: ((Int, Boolean) -> Unit)? = null,
     onImageClick: (String) -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val memo = uiModel.memo
 
@@ -26,9 +31,18 @@ fun MemoCardEntry(
         dateFormat = dateFormat,
         timeFormat = timeFormat,
         tags = uiModel.tags,
+        modifier = modifier,
+        onClick = { onMemoClick?.invoke(memo) },
         onDoubleClick =
             if (doubleTapEditEnabled) {
                 { onMemoEdit(memo) }
+            } else {
+                null
+            },
+        onTagClick = onTagClick,
+        onTodoClick =
+            if (onTodoClick != null) {
+                { index, checked -> onTodoClick(index, checked) }
             } else {
                 null
             },

@@ -54,7 +54,6 @@ import androidx.window.core.layout.WindowSizeClass
 import com.lomo.app.R
 import com.lomo.app.feature.memo.MemoEditorSheetHost
 import com.lomo.app.feature.memo.MemoMenuBinder
-import com.lomo.app.feature.memo.memoMenuState
 import com.lomo.app.feature.memo.rememberMemoEditorController
 import com.lomo.ui.component.navigation.SidebarDrawer
 import com.lomo.ui.theme.MotionTokens
@@ -413,15 +412,7 @@ fun MainScreen(
                                             doubleTapEditEnabled = doubleTapEditEnabled,
                                             onTagClick = actions.onSidebarTagClick,
                                             onImageClick = actions.onNavigateToImage,
-                                            onShowMemoMenu = { uiModel ->
-                                                showMenu(
-                                                    memoMenuState(
-                                                        memo = uiModel.memo,
-                                                        dateFormat = dateFormat,
-                                                        timeFormat = timeFormat,
-                                                    ),
-                                                )
-                                            },
+                                            onShowMemoMenu = showMenu,
                                         )
                                     }
                                 }

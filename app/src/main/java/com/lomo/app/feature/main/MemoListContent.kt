@@ -29,8 +29,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil3.imageLoader
 import coil3.request.ImageRequest
+import com.lomo.app.feature.memo.MemoCardEntry
 import com.lomo.domain.model.Memo
-import com.lomo.ui.component.card.MemoCard
+import com.lomo.ui.component.menu.MemoMenuState
 
 @OptIn(
     androidx.compose.foundation.ExperimentalFoundationApi::class,
@@ -50,7 +51,7 @@ internal fun MemoListContent(
     doubleTapEditEnabled: Boolean = true,
     onTagClick: (String) -> Unit,
     onImageClick: (String) -> Unit,
-    onShowMemoMenu: (MemoUiModel) -> Unit,
+    onShowMemoMenu: (MemoMenuState) -> Unit,
 ) {
     val pullState = rememberPullToRefreshState()
     val context = LocalContext.current
@@ -123,18 +124,22 @@ internal fun MemoListContent(
                         ),
                     label = "DeleteAlpha",
                 )
+                val stableTodoClick =
+                    remember(uiModel.memo, onTodoClick) {
+                        { index: Int, checked: Boolean -> onTodoClick(uiModel.memo, index, checked) }
+                    }
 
-                MemoItemContent(
+                MemoCardEntry(
                     uiModel = uiModel,
-                    onTodoClick = onTodoClick,
                     dateFormat = dateFormat,
                     timeFormat = timeFormat,
-                    onMemoClick = onMemoClick,
-                    onMemoDoubleClick = onMemoDoubleClick,
-                    doubleTapEditEnabled = doubleTapEditEnabled,
+                    onMemoClick = { memo -> onMemoClick(memo.id, memo.content) },
+                    onTodoClick = stableTodoClick,
                     onTagClick = onTagClick,
+                    onMemoEdit = onMemoDoubleClick,
+                    doubleTapEditEnabled = doubleTapEditEnabled,
                     onImageClick = onImageClick,
-                    onShowMemoMenu = onShowMemoMenu,
+                    onShowMenu = onShowMemoMenu,
                     modifier =
                         Modifier
                             .animateItem(
@@ -155,48 +160,4 @@ internal fun MemoListContent(
             }
         }
     }
-}
-
-@Composable
-internal fun MemoItemContent(
-    uiModel: MemoUiModel,
-    onTodoClick: (Memo, Int, Boolean) -> Unit,
-    dateFormat: String,
-    timeFormat: String,
-    onMemoClick: (String, String) -> Unit,
-    onMemoDoubleClick: (Memo) -> Unit,
-    doubleTapEditEnabled: Boolean,
-    onTagClick: (String) -> Unit,
-    onImageClick: (String) -> Unit,
-    onShowMemoMenu: (MemoUiModel) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val stableTodoClick =
-        remember(uiModel.memo) {
-            { index: Int, checked: Boolean -> onTodoClick(uiModel.memo, index, checked) }
-        }
-
-    MemoCard(
-        content = uiModel.memo.content,
-        processedContent = uiModel.processedContent,
-        precomputedNode = uiModel.markdownNode,
-        timestamp = uiModel.memo.timestamp,
-        tags = uiModel.tags,
-        dateFormat = dateFormat,
-        timeFormat = timeFormat,
-        todoOverrides = emptyMap(),
-        modifier = modifier,
-        onClick = { onMemoClick(uiModel.memo.id, uiModel.memo.content) },
-        onDoubleClick =
-            if (doubleTapEditEnabled) {
-                { onMemoDoubleClick(uiModel.memo) }
-            } else {
-                null
-            },
-        onTagClick = onTagClick,
-        onTodoClick = stableTodoClick,
-        onImageClick = onImageClick,
-        onMenuClick = { onShowMemoMenu(uiModel) },
-        menuContent = {},
-    )
 }
