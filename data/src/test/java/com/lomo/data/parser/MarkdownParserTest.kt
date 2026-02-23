@@ -1,5 +1,6 @@
 package com.lomo.data.parser
 
+import com.lomo.data.util.MemoTextProcessor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -18,7 +19,7 @@ class MarkdownParserTest {
 
     @Before
     fun setup() {
-        parser = MarkdownParser()
+        parser = MarkdownParser(MemoTextProcessor())
     }
 
     @Test

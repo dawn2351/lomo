@@ -6,7 +6,6 @@ import androidx.room.RoomDatabase
 import com.lomo.data.local.MemoDatabase
 import com.lomo.data.local.dao.LocalFileStateDao
 import com.lomo.data.local.dao.MemoDao
-import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.repository.MediaRepositoryImpl
 import com.lomo.data.repository.MemoRepositoryImpl
 import com.lomo.data.repository.SettingsRepositoryImpl
@@ -42,16 +41,6 @@ object DataModule {
     @Provides
     @Singleton
     fun provideLocalFileStateDao(database: MemoDatabase): LocalFileStateDao = database.localFileStateDao()
-
-    @Provides
-    @Singleton
-    fun provideMarkdownParser(): MarkdownParser = MarkdownParser()
-
-    @Provides
-    @Singleton
-    fun provideMemoTextProcessor(): com.lomo.data.util.MemoTextProcessor =
-        com.lomo.data.util
-            .MemoTextProcessor()
 
     @Provides
     @Singleton
