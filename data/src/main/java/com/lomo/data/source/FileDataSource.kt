@@ -13,23 +13,36 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 interface FileDataSource {
-    suspend fun setRoot(pathOrUri: String)
+    /**
+     * Unified root configuration API.
+     * Wrappers (`setRoot`, `setImageRoot`, `setVoiceRoot`) are kept for compatibility.
+     */
+    suspend fun setRoot(
+        type: StorageRootType,
+        pathOrUri: String,
+    )
 
-    fun getRootFlow(): Flow<String?>
+    fun getRootFlow(type: StorageRootType): Flow<String?>
 
-    fun getRootDisplayNameFlow(): Flow<String?>
+    fun getRootDisplayNameFlow(type: StorageRootType): Flow<String?>
 
-    fun getImageRootFlow(): Flow<String?>
+    suspend fun setRoot(pathOrUri: String) = setRoot(StorageRootType.MAIN, pathOrUri)
 
-    fun getImageRootDisplayNameFlow(): Flow<String?>
+    fun getRootFlow(): Flow<String?> = getRootFlow(StorageRootType.MAIN)
 
-    suspend fun setImageRoot(pathOrUri: String)
+    fun getRootDisplayNameFlow(): Flow<String?> = getRootDisplayNameFlow(StorageRootType.MAIN)
 
-    fun getVoiceRootFlow(): Flow<String?>
+    suspend fun setImageRoot(pathOrUri: String) = setRoot(StorageRootType.IMAGE, pathOrUri)
 
-    fun getVoiceRootDisplayNameFlow(): Flow<String?>
+    fun getImageRootFlow(): Flow<String?> = getRootFlow(StorageRootType.IMAGE)
 
-    suspend fun setVoiceRoot(pathOrUri: String)
+    fun getImageRootDisplayNameFlow(): Flow<String?> = getRootDisplayNameFlow(StorageRootType.IMAGE)
+
+    suspend fun setVoiceRoot(pathOrUri: String) = setRoot(StorageRootType.VOICE, pathOrUri)
+
+    fun getVoiceRootFlow(): Flow<String?> = getRootFlow(StorageRootType.VOICE)
+
+    fun getVoiceRootDisplayNameFlow(): Flow<String?> = getRootDisplayNameFlow(StorageRootType.VOICE)
 
     // Context-aware API
 
@@ -138,74 +151,87 @@ class FileDataSourceImpl
     ) : FileDataSource {
         // --- Configuration methods ---
 
-        override suspend fun setRoot(pathOrUri: String) {
-            if (pathOrUri.startsWith("content://")) {
-                dataStore.updateRootUri(pathOrUri)
-                dataStore.updateRootDirectory(null)
+        override suspend fun setRoot(
+            type: StorageRootType,
+            pathOrUri: String,
+        ) {
+            if (isContentUri(pathOrUri)) {
+                updateRootValues(
+                    type = type,
+                    uri = pathOrUri,
+                    path = null,
+                )
             } else {
-                dataStore.updateRootDirectory(pathOrUri)
-                dataStore.updateRootUri(null)
+                updateRootValues(
+                    type = type,
+                    uri = null,
+                    path = pathOrUri,
+                )
             }
         }
 
-        override fun getRootFlow(): Flow<String?> = combine(dataStore.rootUri, dataStore.rootDirectory) { uri, path -> uri ?: path }
+        override fun getRootFlow(type: StorageRootType): Flow<String?> =
+            combine(readRootUriFlow(type), readRootPathFlow(type)) { uri, path -> uri ?: path }
 
-        override fun getRootDisplayNameFlow(): Flow<String?> =
-            getRootFlow().map { uriOrPath ->
+        override fun getRootDisplayNameFlow(type: StorageRootType): Flow<String?> =
+            getRootFlow(type).map { uriOrPath ->
                 when {
                     uriOrPath == null -> null
-                    uriOrPath.startsWith("content://") -> getDisplayName(Uri.parse(uriOrPath))
+                    isContentUri(uriOrPath) -> getDisplayName(Uri.parse(uriOrPath))
                     else -> uriOrPath
                 }
             }
-
-        override fun getImageRootFlow(): Flow<String?> = combine(dataStore.imageUri, dataStore.imageDirectory) { uri, path -> uri ?: path }
-
-        override fun getImageRootDisplayNameFlow(): Flow<String?> =
-            getImageRootFlow().map { uriOrPath ->
-                when {
-                    uriOrPath == null -> null
-                    uriOrPath.startsWith("content://") -> getDisplayName(Uri.parse(uriOrPath))
-                    else -> uriOrPath
-                }
-            }
-
-        override suspend fun setImageRoot(pathOrUri: String) {
-            if (pathOrUri.startsWith("content://")) {
-                dataStore.updateImageUri(pathOrUri)
-                dataStore.updateImageDirectory(null)
-            } else {
-                dataStore.updateImageDirectory(pathOrUri)
-                dataStore.updateImageUri(null)
-            }
-        }
-
-        override fun getVoiceRootFlow(): Flow<String?> = combine(dataStore.voiceUri, dataStore.voiceDirectory) { uri, path -> uri ?: path }
-
-        override fun getVoiceRootDisplayNameFlow(): Flow<String?> =
-            getVoiceRootFlow().map { uriOrPath ->
-                when {
-                    uriOrPath == null -> null
-                    uriOrPath.startsWith("content://") -> getDisplayName(Uri.parse(uriOrPath))
-                    else -> uriOrPath
-                }
-            }
-
-        override suspend fun setVoiceRoot(pathOrUri: String) {
-            if (pathOrUri.startsWith("content://")) {
-                dataStore.updateVoiceUri(pathOrUri)
-                dataStore.updateVoiceDirectory(null)
-            } else {
-                dataStore.updateVoiceDirectory(pathOrUri)
-                dataStore.updateVoiceUri(null)
-            }
-        }
 
         private fun getDisplayName(uri: Uri): String =
             try {
                 DocumentFile.fromTreeUri(context, uri)?.name ?: uri.lastPathSegment ?: uri.toString()
             } catch (e: Exception) {
                 uri.lastPathSegment ?: uri.toString()
+            }
+
+        private fun isContentUri(value: String): Boolean =
+            runCatching {
+                java.net
+                    .URI(value)
+                    .scheme
+                    .equals("content", ignoreCase = true)
+            }.getOrDefault(false)
+
+        private suspend fun updateRootValues(
+            type: StorageRootType,
+            uri: String?,
+            path: String?,
+        ) {
+            when (type) {
+                StorageRootType.MAIN -> {
+                    dataStore.updateRootUri(uri)
+                    dataStore.updateRootDirectory(path)
+                }
+
+                StorageRootType.IMAGE -> {
+                    dataStore.updateImageUri(uri)
+                    dataStore.updateImageDirectory(path)
+                }
+
+                StorageRootType.VOICE -> {
+                    dataStore.updateVoiceUri(uri)
+                    dataStore.updateVoiceDirectory(path)
+                }
+            }
+        }
+
+        private fun readRootUriFlow(type: StorageRootType): Flow<String?> =
+            when (type) {
+                StorageRootType.MAIN -> dataStore.rootUri
+                StorageRootType.IMAGE -> dataStore.imageUri
+                StorageRootType.VOICE -> dataStore.voiceUri
+            }
+
+        private fun readRootPathFlow(type: StorageRootType): Flow<String?> =
+            when (type) {
+                StorageRootType.MAIN -> dataStore.rootDirectory
+                StorageRootType.IMAGE -> dataStore.imageDirectory
+                StorageRootType.VOICE -> dataStore.voiceDirectory
             }
 
         // --- Backend resolution ---
@@ -237,12 +263,16 @@ class FileDataSourceImpl
         }
 
         private suspend fun getImageBackend(): Pair<StorageBackend?, Uri?> {
-            val imageUri = dataStore.imageUri.first()
-            val imageDir = dataStore.imageDirectory.first()
+            val (backend, uriString) = getConfiguredBackend(StorageRootType.IMAGE)
+            return backend to uriString?.let(Uri::parse)
+        }
 
+        private suspend fun getConfiguredBackend(type: StorageRootType): Pair<StorageBackend?, String?> {
+            val configuredUri = readRootUriFlow(type).first()
+            val configuredPath = readRootPathFlow(type).first()
             return when {
-                imageUri != null -> SafStorageBackend(context, Uri.parse(imageUri)) to Uri.parse(imageUri)
-                imageDir != null -> DirectStorageBackend(java.io.File(imageDir)) to null
+                configuredUri != null -> SafStorageBackend(context, Uri.parse(configuredUri)) to configuredUri
+                configuredPath != null -> DirectStorageBackend(java.io.File(configuredPath)) to null
                 else -> null to null
             }
         }
@@ -314,7 +344,7 @@ class FileDataSourceImpl
 
         override suspend fun saveImage(uri: Uri): String =
             withContext(Dispatchers.IO) {
-                val (backend, imageUri) = getImageBackend()
+                val (backend, _) = getImageBackend()
 
                 // Generate unique filename
                 val timestamp = System.currentTimeMillis()
@@ -388,12 +418,10 @@ class FileDataSourceImpl
         // --- Voice operations ---
 
         private suspend fun getVoiceBackend(): VoiceStorageBackend? {
-            val voiceUri = dataStore.voiceUri.first()
-            val voiceDir = dataStore.voiceDirectory.first()
+            val (voiceBackend, _) = getConfiguredBackend(StorageRootType.VOICE)
 
             // Use custom voice directory if set
-            if (voiceUri != null) return SafStorageBackend(context, Uri.parse(voiceUri))
-            if (voiceDir != null) return DirectStorageBackend(java.io.File(voiceDir))
+            if (voiceBackend != null) return voiceBackend as? VoiceStorageBackend
 
             // Fallback to root directory (no subfolder)
             val rootUri = dataStore.rootUri.first()
