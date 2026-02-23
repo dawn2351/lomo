@@ -11,11 +11,13 @@ fun MemoInteractionHost(
     shareCardShowTime: Boolean,
     activeDayCount: Int,
     imageDirectory: String?,
+    controller: MemoEditorController = rememberMemoEditorController(),
     onDeleteMemo: (Memo) -> Unit,
     onUpdateMemo: (
         memo: Memo,
         content: String,
     ) -> Unit,
+    onCreateMemo: ((String) -> Unit)? = null,
     onSaveImage: (
         uri: Uri,
         onResult: (String) -> Unit,
@@ -25,34 +27,54 @@ fun MemoInteractionHost(
         content: String,
         timestamp: Long,
     ) -> Unit,
+    onDismiss: () -> Unit = {},
+    onImageDirectoryMissing: (() -> Unit)? = null,
+    onCameraCaptureError: ((Throwable) -> Unit)? = null,
     availableTags: List<String> = emptyList(),
+    isRecording: Boolean = false,
+    recordingDuration: Long = 0L,
+    recordingAmplitude: Int = 0,
+    onStartRecording: () -> Unit = {},
+    onStopRecording: () -> Unit = {},
+    onCancelRecording: () -> Unit = {},
+    hints: List<String> = emptyList(),
     content: @Composable (
         showMenu: (MemoMenuState) -> Unit,
         openEditor: (Memo) -> Unit,
     ) -> Unit,
 ) {
-    val editorController = rememberMemoEditorController()
-
     MemoMenuBinder(
         shareCardStyle = shareCardStyle,
         shareCardShowTime = shareCardShowTime,
         activeDayCount = activeDayCount,
-        onEditMemo = editorController::openForEdit,
+        onEditMemo = controller::openForEdit,
         onDeleteMemo = onDeleteMemo,
         onLanShare = onLanShare,
     ) { showMenu ->
-        content(showMenu, editorController::openForEdit)
+        content(showMenu, controller::openForEdit)
 
         MemoEditorSheetHost(
-            controller = editorController,
+            controller = controller,
             imageDirectory = imageDirectory,
             onSaveImage = onSaveImage,
             onSubmit = { memo, content ->
                 if (memo != null) {
                     onUpdateMemo(memo, content)
+                } else {
+                    onCreateMemo?.invoke(content)
                 }
             },
+            onDismiss = onDismiss,
+            onImageDirectoryMissing = onImageDirectoryMissing,
+            onCameraCaptureError = onCameraCaptureError,
             availableTags = availableTags,
+            isRecording = isRecording,
+            recordingDuration = recordingDuration,
+            recordingAmplitude = recordingAmplitude,
+            onStartRecording = onStartRecording,
+            onStopRecording = onStopRecording,
+            onCancelRecording = onCancelRecording,
+            hints = hints,
         )
     }
 }

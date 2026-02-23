@@ -52,8 +52,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.core.layout.WindowSizeClass
 import com.lomo.app.R
-import com.lomo.app.feature.memo.MemoEditorSheetHost
-import com.lomo.app.feature.memo.MemoMenuBinder
+import com.lomo.app.feature.memo.MemoInteractionHost
 import com.lomo.app.feature.memo.rememberMemoEditorController
 import com.lomo.ui.component.navigation.SidebarDrawer
 import com.lomo.ui.theme.MotionTokens
@@ -207,16 +206,60 @@ fun MainScreen(
         }
     }
 
-    // Track deleting items for "fade out then delete" animation sequence
+    val allTags = remember(sidebarUiState.tags) { sidebarUiState.tags.map { it.name }.sorted() }
 
-    MemoMenuBinder(
+    MemoInteractionHost(
         shareCardStyle = shareCardStyle,
         shareCardShowTime = shareCardShowTime,
         activeDayCount = activeDayCount,
-        onEditMemo = editorController::openForEdit,
+        imageDirectory = imageDir,
+        controller = editorController,
         onDeleteMemo = viewModel::deleteMemo,
+        onUpdateMemo = viewModel::updateMemo,
+        onCreateMemo = { content ->
+            viewModel.addMemo(content)
+            pendingNewMemoScroll = true
+        },
+        onSaveImage = viewModel::saveImage,
         onLanShare = onNavigateToShare,
-    ) { showMenu ->
+        onDismiss = viewModel::discardInputs,
+        onImageDirectoryMissing = { directorySetupType = DirectorySetupType.Image },
+        onCameraCaptureError = { error ->
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    error.message ?: context.getString(R.string.error_unknown),
+                )
+            }
+        },
+        availableTags = allTags,
+        isRecording = isRecording,
+        recordingDuration = recordingDuration,
+        recordingAmplitude = recordingAmplitude,
+        onStartRecording = {
+            if (voiceDir == null) {
+                directorySetupType = DirectorySetupType.Voice
+            } else {
+                recordingViewModel.startRecording()
+            }
+        },
+        onCancelRecording = recordingViewModel::cancelRecording,
+        onStopRecording = {
+            recordingViewModel.stopRecording { markdown ->
+                editorController.appendMarkdownBlock(markdown)
+            }
+        },
+        hints =
+            if (showInputHints) {
+                listOf(
+                    stringResource(R.string.input_hint_1),
+                    stringResource(R.string.input_hint_2),
+                    stringResource(R.string.input_hint_3),
+                    stringResource(R.string.input_hint_4),
+                )
+            } else {
+                emptyList()
+            },
+    ) { showMenu, openEditor ->
 
         // Track previous filter values to detect actual changes (not recomposition)
         var previousTag by rememberSaveable { mutableStateOf<String?>(null) }
@@ -408,7 +451,7 @@ fun MainScreen(
                                             dateFormat = dateFormat,
                                             timeFormat = timeFormat,
                                             onMemoClick = actions.onMemoClick,
-                                            onMemoDoubleClick = editorController::openForEdit,
+                                            onMemoDoubleClick = openEditor,
                                             doubleTapEditEnabled = doubleTapEditEnabled,
                                             onTagClick = actions.onSidebarTagClick,
                                             onImageClick = actions.onNavigateToImage,
@@ -445,62 +488,6 @@ fun MainScreen(
                 )
             }
         }
-
-        val allTags = remember(sidebarUiState.tags) { sidebarUiState.tags.map { it.name }.sorted() }
-        MemoEditorSheetHost(
-            controller = editorController,
-            imageDirectory = imageDir,
-            onSaveImage = viewModel::saveImage,
-            onSubmit = { memo, content ->
-                val isNewMemo = memo == null
-                if (memo != null) {
-                    viewModel.updateMemo(memo, content)
-                } else {
-                    viewModel.addMemo(content)
-                }
-
-                if (isNewMemo) {
-                    pendingNewMemoScroll = true
-                }
-            },
-            onDismiss = viewModel::discardInputs,
-            onImageDirectoryMissing = { directorySetupType = DirectorySetupType.Image },
-            onCameraCaptureError = { error ->
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        error.message ?: context.getString(R.string.error_unknown),
-                    )
-                }
-            },
-            availableTags = allTags,
-            isRecording = isRecording,
-            recordingDuration = recordingDuration,
-            recordingAmplitude = recordingAmplitude,
-            onStartRecording = {
-                if (voiceDir == null) {
-                    directorySetupType = DirectorySetupType.Voice
-                } else {
-                    recordingViewModel.startRecording()
-                }
-            },
-            onCancelRecording = recordingViewModel::cancelRecording,
-            onStopRecording = {
-                recordingViewModel.stopRecording { markdown ->
-                    editorController.appendMarkdownBlock(markdown)
-                }
-            },
-            hints =
-                if (showInputHints) {
-                    listOf(
-                        stringResource(R.string.input_hint_1),
-                        stringResource(R.string.input_hint_2),
-                        stringResource(R.string.input_hint_3),
-                        stringResource(R.string.input_hint_4),
-                    )
-                } else {
-                    emptyList()
-                },
-        )
 
         if (directorySetupType != null) {
             val type = directorySetupType!!
