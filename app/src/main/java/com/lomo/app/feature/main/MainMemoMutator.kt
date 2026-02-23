@@ -1,9 +1,9 @@
 package com.lomo.app.feature.main
 
+import com.lomo.app.repository.AppWidgetRepository
 import com.lomo.domain.model.Memo
-import com.lomo.domain.repository.WidgetRepository
+import com.lomo.domain.repository.MemoRepository
 import com.lomo.domain.usecase.CreateMemoUseCase
-import com.lomo.domain.usecase.DeleteMemoUseCase
 import com.lomo.domain.usecase.UpdateMemoUseCase
 import javax.inject.Inject
 
@@ -14,19 +14,19 @@ class MainMemoMutator
     @Inject
     constructor(
         private val createMemoUseCase: CreateMemoUseCase,
-        private val deleteMemoUseCase: DeleteMemoUseCase,
+        private val memoRepository: MemoRepository,
         private val updateMemoUseCase: UpdateMemoUseCase,
-        private val widgetRepository: WidgetRepository,
+        private val appWidgetRepository: AppWidgetRepository,
         private val textProcessor: com.lomo.data.util.MemoTextProcessor,
     ) {
         suspend fun addMemo(content: String) {
             createMemoUseCase(content)
-            widgetRepository.updateAllWidgets()
+            appWidgetRepository.updateAllWidgets()
         }
 
         suspend fun deleteMemo(memo: Memo) {
-            deleteMemoUseCase(memo)
-            widgetRepository.updateAllWidgets()
+            memoRepository.deleteMemo(memo)
+            appWidgetRepository.updateAllWidgets()
         }
 
         suspend fun updateMemo(
@@ -34,7 +34,7 @@ class MainMemoMutator
             newContent: String,
         ) {
             updateMemoUseCase(memo, newContent)
-            widgetRepository.updateAllWidgets()
+            appWidgetRepository.updateAllWidgets()
         }
 
         suspend fun toggleCheckbox(
