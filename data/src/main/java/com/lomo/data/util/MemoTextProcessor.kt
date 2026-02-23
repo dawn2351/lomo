@@ -131,10 +131,7 @@ class MemoTextProcessor
                     newMemoLines.add("- $timestampStr")
                 }
 
-                val linesToRemove = (endIndex - startIndex) + 1
-                for (k in 0 until linesToRemove) {
-                    if (startIndex < lines.size) lines.removeAt(startIndex)
-                }
+                lines.subList(startIndex, endIndex + 1).clear()
                 lines.addAll(startIndex, newMemoLines)
                 return true
             }
@@ -150,10 +147,7 @@ class MemoTextProcessor
         ): Boolean {
             val (startIndex, endIndex) = findMemoBlock(lines, rawContent, timestamp, memoId)
             if (startIndex != -1 && endIndex >= startIndex) {
-                val linesToRemove = (endIndex - startIndex) + 1
-                for (k in 0 until linesToRemove) {
-                    if (startIndex < lines.size) lines.removeAt(startIndex)
-                }
+                lines.subList(startIndex, endIndex + 1).clear()
                 return true
             }
             return false
@@ -209,25 +203,45 @@ class MemoTextProcessor
         ): String {
             require(lineIndex >= 0) { "lineIndex must be non-negative, was: $lineIndex" }
 
-            val lines = content.lines().toMutableList()
-            if (lineIndex !in lines.indices) {
-                // P1-004 Fix: Log warning for debugging edge cases
-                timber.log.Timber.w("toggleCheckbox: lineIndex $lineIndex out of bounds (0..${lines.lastIndex})")
+            val pattern = if (checked) "- [ ]" else "- [x]"
+            val replacement = if (checked) "- [x]" else "- [ ]"
+
+            val builder = StringBuilder(content.length + 8)
+            var currentIndex = 0
+            var hadAnyLine = false
+            var targetFound = false
+            var targetReplaced = false
+
+            content.lineSequence().forEach { line ->
+                if (hadAnyLine) builder.append('\n')
+
+                if (currentIndex == lineIndex) {
+                    targetFound = true
+                    if (line.contains(pattern)) {
+                        builder.append(line.replaceFirst(pattern, replacement))
+                        targetReplaced = true
+                    } else {
+                        builder.append(line)
+                    }
+                } else {
+                    builder.append(line)
+                }
+
+                hadAnyLine = true
+                currentIndex++
+            }
+
+            if (!targetFound) {
+                timber.log.Timber.w("toggleCheckbox: lineIndex $lineIndex out of bounds (0..${currentIndex - 1})")
                 return content
             }
 
-            val line = lines[lineIndex]
-            val pattern = if (checked) "- [ ]" else "- [x]"
-
-            if (!line.contains(pattern)) {
-                // P1-004 Fix: Log warning for debugging when pattern not found
+            if (!targetReplaced) {
                 timber.log.Timber.w("toggleCheckbox: expected pattern '$pattern' not found at line $lineIndex")
                 return content
             }
 
-            val replacement = if (checked) "- [x]" else "- [ ]"
-            lines[lineIndex] = line.replaceFirst(pattern, replacement)
-            return lines.joinToString("\n")
+            return builder.toString()
         }
 
         /**
