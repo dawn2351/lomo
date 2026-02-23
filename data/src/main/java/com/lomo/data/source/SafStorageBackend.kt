@@ -186,7 +186,7 @@ class SafStorageBackend(
 
     // --- File listing ---
 
-    override suspend fun listFiles(targetFilename: String?): List<FileContent> =
+    private suspend fun listFiles(targetFilename: String?): List<FileContent> =
         withContext(Dispatchers.IO) {
             val root = getRoot() ?: return@withContext emptyList()
             root.listFiles().mapNotNull { file ->
@@ -207,7 +207,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun listTrashFiles(): List<FileContent> =
+    private suspend fun listTrashFiles(): List<FileContent> =
         withContext(Dispatchers.IO) {
             val trashDir = getTrashDir() ?: return@withContext emptyList()
             trashDir.listFiles().mapNotNull { file ->
@@ -225,7 +225,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun listMetadata(): List<FileMetadata> =
+    private suspend fun listMetadata(): List<FileMetadata> =
         withContext(Dispatchers.IO) {
             try {
                 // Try optimized query first
@@ -282,7 +282,7 @@ class SafStorageBackend(
         return result
     }
 
-    override suspend fun listTrashMetadata(): List<FileMetadata> =
+    private suspend fun listTrashMetadata(): List<FileMetadata> =
         withContext(Dispatchers.IO) {
             val trashDir = getTrashDir() ?: return@withContext emptyList()
             trashDir.listFiles().mapNotNull { file ->
@@ -295,7 +295,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun listMetadataWithIds(): List<FileMetadataWithId> =
+    private suspend fun listMetadataWithIds(): List<FileMetadataWithId> =
         withContext(Dispatchers.IO) {
             try {
                 val rootDocId = DocumentsContract.getTreeDocumentId(rootUri)
@@ -347,7 +347,7 @@ class SafStorageBackend(
         return result
     }
 
-    override suspend fun listTrashMetadataWithIds(): List<FileMetadataWithId> =
+    private suspend fun listTrashMetadataWithIds(): List<FileMetadataWithId> =
         withContext(Dispatchers.IO) {
             try {
                 val trashDir = getTrashDir() ?: return@withContext emptyList()
@@ -370,7 +370,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun getFileMetadata(filename: String): FileMetadata? =
+    private suspend fun getFileMetadata(filename: String): FileMetadata? =
         withContext(Dispatchers.IO) {
             val root = getRoot() ?: return@withContext null
             val file = root.findFile(filename)
@@ -381,7 +381,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun getTrashFileMetadata(filename: String): FileMetadata? =
+    private suspend fun getTrashFileMetadata(filename: String): FileMetadata? =
         withContext(Dispatchers.IO) {
             val trash = getTrashDir() ?: return@withContext null
             val file = trash.findFile(filename)
@@ -394,7 +394,7 @@ class SafStorageBackend(
 
     // --- File reading ---
 
-    override suspend fun readFile(filename: String): String? =
+    private suspend fun readFile(filename: String): String? =
         withContext(Dispatchers.IO) {
             val root = getRoot() ?: return@withContext null
             val file = root.findFile(filename) ?: return@withContext null
@@ -406,14 +406,14 @@ class SafStorageBackend(
             readFileFromUri(uri)
         }
 
-    override suspend fun readTrashFile(filename: String): String? =
+    private suspend fun readTrashFile(filename: String): String? =
         withContext(Dispatchers.IO) {
             val trash = getTrashDir() ?: return@withContext null
             val file = trash.findFile(filename) ?: return@withContext null
             readFileFromUri(file.uri)
         }
 
-    override suspend fun readFileByDocumentId(documentId: String): String? =
+    private suspend fun readFileByDocumentId(documentId: String): String? =
         withContext(Dispatchers.IO) {
             try {
                 val fileUri = DocumentsContract.buildDocumentUriUsingTree(rootUri, documentId)
@@ -423,7 +423,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun readTrashFileByDocumentId(documentId: String): String? =
+    private suspend fun readTrashFileByDocumentId(documentId: String): String? =
         withContext(Dispatchers.IO) {
             try {
                 val fileUri = DocumentsContract.buildDocumentUriUsingTree(rootUri, documentId)
@@ -433,7 +433,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun readHead(
+    private suspend fun readHead(
         filename: String,
         maxChars: Int,
     ): String? =
@@ -451,7 +451,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun readHeadByDocumentId(
+    private suspend fun readHeadByDocumentId(
         documentId: String,
         maxChars: Int,
     ): String? =
@@ -471,7 +471,7 @@ class SafStorageBackend(
 
     // --- File writing ---
 
-    override suspend fun saveFile(
+    private suspend fun saveFile(
         filename: String,
         content: String,
         append: Boolean,
@@ -506,7 +506,7 @@ class SafStorageBackend(
             }
         }
 
-    override suspend fun saveTrashFile(
+    private suspend fun saveTrashFile(
         filename: String,
         content: String,
         append: Boolean,
@@ -527,7 +527,7 @@ class SafStorageBackend(
 
     // --- File deletion ---
 
-    override suspend fun deleteFile(
+    private suspend fun deleteFile(
         filename: String,
         uri: Uri?,
     ) = withContext(Dispatchers.IO) {
@@ -546,7 +546,7 @@ class SafStorageBackend(
         Unit
     }
 
-    override suspend fun deleteTrashFile(filename: String) =
+    private suspend fun deleteTrashFile(filename: String) =
         withContext(Dispatchers.IO) {
             val trash = getTrashDir()
             trash?.findFile(filename)?.delete()
@@ -555,13 +555,13 @@ class SafStorageBackend(
 
     // --- File existence ---
 
-    override suspend fun exists(filename: String): Boolean =
+    private suspend fun exists(filename: String): Boolean =
         withContext(Dispatchers.IO) {
             val root = getRoot()
             root?.findFile(filename)?.exists() == true
         }
 
-    override suspend fun trashExists(filename: String): Boolean =
+    private suspend fun trashExists(filename: String): Boolean =
         withContext(Dispatchers.IO) {
             val trash = getTrashDir()
             trash?.findFile(filename)?.exists() == true

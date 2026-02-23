@@ -152,7 +152,7 @@ class DirectStorageBackend(
 
     // --- File listing ---
 
-    override suspend fun listFiles(targetFilename: String?): List<FileContent> =
+    private suspend fun listFiles(targetFilename: String?): List<FileContent> =
         withContext(Dispatchers.IO) {
             if (!rootDir.exists() || !rootDir.isDirectory) return@withContext emptyList()
 
@@ -164,7 +164,7 @@ class DirectStorageBackend(
                 } ?: emptyList()
         }
 
-    override suspend fun listTrashFiles(): List<FileContent> =
+    private suspend fun listTrashFiles(): List<FileContent> =
         withContext(Dispatchers.IO) {
             if (!trashDir.exists() || !trashDir.isDirectory) return@withContext emptyList()
 
@@ -173,7 +173,7 @@ class DirectStorageBackend(
             } ?: emptyList()
         }
 
-    override suspend fun listMetadata(): List<FileMetadata> =
+    private suspend fun listMetadata(): List<FileMetadata> =
         withContext(Dispatchers.IO) {
             if (!rootDir.exists() || !rootDir.isDirectory) return@withContext emptyList()
 
@@ -182,7 +182,7 @@ class DirectStorageBackend(
             } ?: emptyList()
         }
 
-    override suspend fun listTrashMetadata(): List<FileMetadata> =
+    private suspend fun listTrashMetadata(): List<FileMetadata> =
         withContext(Dispatchers.IO) {
             if (!trashDir.exists() || !trashDir.isDirectory) return@withContext emptyList()
 
@@ -191,7 +191,7 @@ class DirectStorageBackend(
             } ?: emptyList()
         }
 
-    override suspend fun listMetadataWithIds(): List<FileMetadataWithId> =
+    private suspend fun listMetadataWithIds(): List<FileMetadataWithId> =
         withContext(Dispatchers.IO) {
             // For direct file access, use filename as pseudo document ID
             listMetadata().map {
@@ -204,7 +204,7 @@ class DirectStorageBackend(
             }
         }
 
-    override suspend fun listTrashMetadataWithIds(): List<FileMetadataWithId> =
+    private suspend fun listTrashMetadataWithIds(): List<FileMetadataWithId> =
         withContext(Dispatchers.IO) {
             listTrashMetadata().map {
                 FileMetadataWithId(
@@ -216,7 +216,7 @@ class DirectStorageBackend(
             }
         }
 
-    override suspend fun getFileMetadata(filename: String): FileMetadata? =
+    private suspend fun getFileMetadata(filename: String): FileMetadata? =
         withContext(Dispatchers.IO) {
             val file = File(rootDir, filename)
             if (file.exists()) {
@@ -226,7 +226,7 @@ class DirectStorageBackend(
             }
         }
 
-    override suspend fun getTrashFileMetadata(filename: String): FileMetadata? =
+    private suspend fun getTrashFileMetadata(filename: String): FileMetadata? =
         withContext(Dispatchers.IO) {
             val file = File(trashDir, filename)
             if (file.exists()) {
@@ -238,7 +238,7 @@ class DirectStorageBackend(
 
     // --- File reading ---
 
-    override suspend fun readFile(filename: String): String? =
+    private suspend fun readFile(filename: String): String? =
         withContext(Dispatchers.IO) {
             val file = File(rootDir, filename)
             if (file.exists()) file.readText() else null
@@ -256,18 +256,17 @@ class DirectStorageBackend(
             }
         }
 
-    override suspend fun readTrashFile(filename: String): String? =
+    private suspend fun readTrashFile(filename: String): String? =
         withContext(Dispatchers.IO) {
             val file = File(trashDir, filename)
             if (file.exists()) file.readText() else null
         }
 
-    override suspend fun readFileByDocumentId(documentId: String): String? =
-        readFile(documentId) // documentId == filename for direct access
+    private suspend fun readFileByDocumentId(documentId: String): String? = readFile(documentId) // documentId == filename for direct access
 
-    override suspend fun readTrashFileByDocumentId(documentId: String): String? = readTrashFile(documentId)
+    private suspend fun readTrashFileByDocumentId(documentId: String): String? = readTrashFile(documentId)
 
-    override suspend fun readHead(
+    private suspend fun readHead(
         filename: String,
         maxChars: Int,
     ): String? =
@@ -281,14 +280,14 @@ class DirectStorageBackend(
             }
         }
 
-    override suspend fun readHeadByDocumentId(
+    private suspend fun readHeadByDocumentId(
         documentId: String,
         maxChars: Int,
     ): String? = readHead(documentId, maxChars)
 
     // --- File writing ---
 
-    override suspend fun saveFile(
+    private suspend fun saveFile(
         filename: String,
         content: String,
         append: Boolean,
@@ -301,7 +300,7 @@ class DirectStorageBackend(
             file.absolutePath
         }
 
-    override suspend fun saveTrashFile(
+    private suspend fun saveTrashFile(
         filename: String,
         content: String,
         append: Boolean,
@@ -313,7 +312,7 @@ class DirectStorageBackend(
 
     // --- File deletion ---
 
-    override suspend fun deleteFile(
+    private suspend fun deleteFile(
         filename: String,
         uri: Uri?,
     ) = withContext(Dispatchers.IO) {
@@ -321,7 +320,7 @@ class DirectStorageBackend(
         Unit
     }
 
-    override suspend fun deleteTrashFile(filename: String) =
+    private suspend fun deleteTrashFile(filename: String) =
         withContext(Dispatchers.IO) {
             File(trashDir, filename).delete()
             Unit
@@ -329,12 +328,12 @@ class DirectStorageBackend(
 
     // --- File existence ---
 
-    override suspend fun exists(filename: String): Boolean =
+    private suspend fun exists(filename: String): Boolean =
         withContext(Dispatchers.IO) {
             File(rootDir, filename).exists()
         }
 
-    override suspend fun trashExists(filename: String): Boolean =
+    private suspend fun trashExists(filename: String): Boolean =
         withContext(Dispatchers.IO) {
             File(trashDir, filename).exists()
         }
