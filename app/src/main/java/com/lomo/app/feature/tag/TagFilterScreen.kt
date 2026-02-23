@@ -28,9 +28,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lomo.app.feature.memo.MemoCardList
 import com.lomo.app.feature.memo.MemoCardListAnimation
-import com.lomo.app.feature.memo.MemoEditorSheetHost
-import com.lomo.app.feature.memo.MemoMenuBinder
-import com.lomo.app.feature.memo.rememberMemoEditorController
+import com.lomo.app.feature.memo.MemoInteractionHost
 import com.lomo.ui.component.common.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -53,16 +51,17 @@ fun TagFilterScreen(
     val imageDirectory by viewModel.imageDir.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val haptic = com.lomo.ui.util.LocalAppHapticFeedback.current
-    val editorController = rememberMemoEditorController()
 
-    MemoMenuBinder(
+    MemoInteractionHost(
         shareCardStyle = shareCardStyle,
         shareCardShowTime = shareCardShowTime,
         activeDayCount = activeDayCount,
-        onEditMemo = editorController::openForEdit,
         onDeleteMemo = viewModel::deleteMemo,
+        onUpdateMemo = viewModel::updateMemo,
+        onSaveImage = viewModel::saveImage,
+        imageDirectory = imageDirectory,
         onLanShare = onNavigateToShare,
-    ) { showMenu ->
+    ) { showMenu, openEditor ->
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
@@ -117,7 +116,7 @@ fun TagFilterScreen(
                     dateFormat = dateFormat,
                     timeFormat = timeFormat,
                     doubleTapEditEnabled = doubleTapEditEnabled,
-                    onMemoEdit = editorController::openForEdit,
+                    onMemoEdit = openEditor,
                     onShowMenu = showMenu,
                     onImageClick = onNavigateToImage,
                     animation = MemoCardListAnimation.Placement,
@@ -131,13 +130,5 @@ fun TagFilterScreen(
                 )
             }
         }
-
-        MemoEditorSheetHost(
-            controller = editorController,
-            imageDirectory = imageDirectory,
-            onSaveImage = viewModel::saveImage,
-            onSubmit = viewModel::updateMemo,
-            availableTags = emptyList(),
-        )
     }
 }

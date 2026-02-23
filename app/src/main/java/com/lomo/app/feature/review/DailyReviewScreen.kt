@@ -31,9 +31,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lomo.app.R
 import com.lomo.app.feature.memo.MemoCardEntry
-import com.lomo.app.feature.memo.MemoEditorSheetHost
-import com.lomo.app.feature.memo.MemoMenuBinder
-import com.lomo.app.feature.memo.rememberMemoEditorController
+import com.lomo.app.feature.memo.MemoInteractionHost
 import com.lomo.ui.component.common.EmptyState
 import com.lomo.ui.util.UiState
 
@@ -55,16 +53,17 @@ fun DailyReviewScreen(
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val editorController = rememberMemoEditorController()
 
-    MemoMenuBinder(
+    MemoInteractionHost(
         shareCardStyle = shareCardStyle,
         shareCardShowTime = shareCardShowTime,
         activeDayCount = activeDayCount,
-        onEditMemo = editorController::openForEdit,
         onDeleteMemo = viewModel::deleteMemo,
+        onUpdateMemo = viewModel::updateMemo,
+        onSaveImage = viewModel::saveImage,
+        imageDirectory = imageDirectory,
         onLanShare = onNavigateToShare,
-    ) { showMenu ->
+    ) { showMenu, openEditor ->
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -150,7 +149,7 @@ fun DailyReviewScreen(
                                                 dateFormat = dateFormat,
                                                 timeFormat = timeFormat,
                                                 doubleTapEditEnabled = doubleTapEditEnabled,
-                                                onMemoEdit = editorController::openForEdit,
+                                                onMemoEdit = openEditor,
                                                 onShowMenu = showMenu,
                                                 onImageClick = onNavigateToImage,
                                             )
@@ -176,13 +175,5 @@ fun DailyReviewScreen(
                 }
             }
         }
-
-        MemoEditorSheetHost(
-            controller = editorController,
-            imageDirectory = imageDirectory,
-            onSaveImage = viewModel::saveImage,
-            onSubmit = viewModel::updateMemo,
-            availableTags = emptyList(),
-        )
     }
 }

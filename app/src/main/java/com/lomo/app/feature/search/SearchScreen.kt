@@ -39,9 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lomo.app.R
 import com.lomo.app.feature.memo.MemoCardList
 import com.lomo.app.feature.memo.MemoCardListAnimation
-import com.lomo.app.feature.memo.MemoEditorSheetHost
-import com.lomo.app.feature.memo.MemoMenuBinder
-import com.lomo.app.feature.memo.rememberMemoEditorController
+import com.lomo.app.feature.memo.MemoInteractionHost
 import com.lomo.ui.component.common.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -66,20 +64,21 @@ fun SearchScreen(
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
-    val editorController = rememberMemoEditorController()
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
 
-    MemoMenuBinder(
+    MemoInteractionHost(
         shareCardStyle = shareCardStyle,
         shareCardShowTime = shareCardShowTime,
         activeDayCount = activeDayCount,
-        onEditMemo = editorController::openForEdit,
         onDeleteMemo = viewModel::deleteMemo,
+        onUpdateMemo = viewModel::updateMemo,
+        onSaveImage = viewModel::saveImage,
+        imageDirectory = imageDirectory,
         onLanShare = onNavigateToShare,
-    ) { showMenu ->
+    ) { showMenu, openEditor ->
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
@@ -188,7 +187,7 @@ fun SearchScreen(
                             dateFormat = dateFormat,
                             timeFormat = timeFormat,
                             doubleTapEditEnabled = doubleTapEditEnabled,
-                            onMemoEdit = editorController::openForEdit,
+                            onMemoEdit = openEditor,
                             onShowMenu = showMenu,
                             animation = MemoCardListAnimation.FadeIn,
                             contentPadding = PaddingValues(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
@@ -197,13 +196,5 @@ fun SearchScreen(
                 }
             }
         }
-
-        MemoEditorSheetHost(
-            controller = editorController,
-            imageDirectory = imageDirectory,
-            onSaveImage = viewModel::saveImage,
-            onSubmit = viewModel::updateMemo,
-            availableTags = emptyList(),
-        )
     }
 }
