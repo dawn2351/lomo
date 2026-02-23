@@ -33,12 +33,12 @@ class TagFilterViewModel
         val tagName: String = savedStateHandle.get<String>("tagName") ?: ""
 
         private val rootDirectory: StateFlow<String?> =
-            memoRepository
+            settingsRepository
                 .getRootDirectory()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
         private val imageDirectory: StateFlow<String?> =
-            memoRepository
+            settingsRepository
                 .getImageDirectory()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 

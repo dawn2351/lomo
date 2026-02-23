@@ -6,26 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Core repository for memo data operations: CRUD, search, trash, stats, and sync.
- * Directory read methods are kept here so CRUD ViewModels don't need to depend on
- * [SettingsRepository]. Directory write methods live in [SettingsRepository].
- * Media file operations live in [MediaRepository].
  */
 interface MemoRepository {
-    // Directory reads
-    fun getRootDirectory(): Flow<String?>
-
-    suspend fun getRootDirectoryOnce(): String?
-
-    fun getRootDisplayName(): Flow<String?>
-
-    fun getImageDirectory(): Flow<String?>
-
-    fun getImageDisplayName(): Flow<String?>
-
-    fun getVoiceDirectory(): Flow<String?>
-
-    fun getVoiceDisplayName(): Flow<String?>
-
     // Data operations
     fun getAllMemosList(): Flow<List<Memo>>
 

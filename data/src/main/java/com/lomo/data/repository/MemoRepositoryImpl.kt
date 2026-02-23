@@ -1,7 +1,6 @@
 package com.lomo.data.repository
 
 import com.lomo.data.local.dao.MemoDao
-import com.lomo.data.source.FileDataSource
 import com.lomo.domain.model.Memo
 import com.lomo.domain.repository.MemoRepository
 import kotlinx.coroutines.flow.Flow
@@ -12,24 +11,8 @@ class MemoRepositoryImpl
     @Inject
     constructor(
         private val dao: MemoDao,
-        private val dataSource: FileDataSource,
         private val synchronizer: MemoSynchronizer,
-        private val dataStore: com.lomo.data.local.datastore.LomoDataStore,
     ) : MemoRepository {
-        override fun getRootDirectory(): Flow<String?> = dataSource.getRootFlow()
-
-        override suspend fun getRootDirectoryOnce(): String? = dataStore.getRootDirectoryOnce()
-
-        override fun getRootDisplayName(): Flow<String?> = dataSource.getRootDisplayNameFlow()
-
-        override fun getImageDirectory(): Flow<String?> = dataSource.getImageRootFlow()
-
-        override fun getImageDisplayName(): Flow<String?> = dataSource.getImageRootDisplayNameFlow()
-
-        override fun getVoiceDirectory(): Flow<String?> = dataSource.getVoiceRootFlow()
-
-        override fun getVoiceDisplayName(): Flow<String?> = dataSource.getVoiceRootDisplayNameFlow()
-
         override fun getAllMemosList(): Flow<List<Memo>> = dao.getAllMemosFlow().map { entities -> entities.map { it.toDomain() } }
 
         override suspend fun getRandomMemos(limit: Int): List<Memo> = dao.getRandomMemos(limit).map { it.toDomain() }

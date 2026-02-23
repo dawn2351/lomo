@@ -54,7 +54,7 @@ class DailyReviewViewModel
                 )
 
         val imageDirectory: StateFlow<String?> =
-            repository
+            settingsRepository
                 .getImageDirectory()
                 .stateIn(
                     scope = viewModelScope,

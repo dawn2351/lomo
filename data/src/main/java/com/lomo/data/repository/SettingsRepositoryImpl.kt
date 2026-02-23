@@ -16,6 +16,20 @@ class SettingsRepositoryImpl
         private val dataSource: FileDataSource,
         private val dataStore: LomoDataStore,
     ) : SettingsRepository {
+        override fun getRootDirectory(): Flow<String?> = dataSource.getRootFlow()
+
+        override suspend fun getRootDirectoryOnce(): String? = dataStore.getRootDirectoryOnce()
+
+        override fun getRootDisplayName(): Flow<String?> = dataSource.getRootDisplayNameFlow()
+
+        override fun getImageDirectory(): Flow<String?> = dataSource.getImageRootFlow()
+
+        override fun getImageDisplayName(): Flow<String?> = dataSource.getImageRootDisplayNameFlow()
+
+        override fun getVoiceDirectory(): Flow<String?> = dataSource.getVoiceRootFlow()
+
+        override fun getVoiceDisplayName(): Flow<String?> = dataSource.getVoiceRootDisplayNameFlow()
+
         override suspend fun setRootDirectory(path: String) {
             clearMemoCaches()
             dataSource.setRoot(path)

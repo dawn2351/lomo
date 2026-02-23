@@ -30,14 +30,14 @@ class MainStartupCoordinator
         private val updateManager: UpdateManager,
     ) {
         suspend fun initializeRootDirectory(): String? {
-            val rootDirectory = repository.getRootDirectoryOnce()
+            val rootDirectory = settingsRepository.getRootDirectoryOnce()
             audioPlayerManager.setRootDirectory(rootDirectory)
             resyncCachesIfAppVersionChanged(rootDirectory)
             return rootDirectory
         }
 
         fun observeRootDirectoryChanges(): Flow<String?> =
-            repository
+            settingsRepository
                 .getRootDirectory()
                 .drop(1)
                 .onEach { directory ->
@@ -45,7 +45,7 @@ class MainStartupCoordinator
                 }
 
         fun observeVoiceDirectoryChanges(): Flow<String?> =
-            repository
+            settingsRepository
                 .getVoiceDirectory()
                 .onEach { voiceDirectory ->
                     audioPlayerManager.setVoiceDirectory(voiceDirectory)

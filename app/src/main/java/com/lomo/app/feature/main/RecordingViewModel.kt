@@ -3,7 +3,7 @@ package com.lomo.app.feature.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lomo.domain.repository.MediaRepository
-import com.lomo.domain.repository.MemoRepository
+import com.lomo.domain.repository.SettingsRepository
 import com.lomo.domain.repository.VoiceRecorder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +30,7 @@ import javax.inject.Inject
 class RecordingViewModel
     @Inject
     constructor(
-        private val repository: MemoRepository,
+        private val settingsRepository: SettingsRepository,
         private val mediaRepository: MediaRepository,
         private val voiceRecorder: VoiceRecorder,
     ) : ViewModel() {
@@ -47,7 +47,7 @@ class RecordingViewModel
         val errorMessage: StateFlow<String?> = _errorMessage
 
         val voiceDirectory: StateFlow<String?> =
-            repository
+            settingsRepository
                 .getVoiceDirectory()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 

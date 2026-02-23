@@ -128,14 +128,14 @@ class MainViewModel
         val rootDirectory: StateFlow<String?> = _rootDirectory
 
         val imageDirectory: StateFlow<String?> =
-            repository
+            settingsRepository
                 .getImageDirectory()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
         val imageMap: StateFlow<Map<String, android.net.Uri>> = imageMapProvider.imageMap
 
         val voiceDirectory: StateFlow<String?> =
-            repository
+            settingsRepository
                 .getVoiceDirectory()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 

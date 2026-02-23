@@ -38,12 +38,12 @@ class SearchViewModel
         val searchQuery: StateFlow<String> = _searchQuery
 
         val rootDirectory: StateFlow<String?> =
-            repository
+            settingsRepository
                 .getRootDirectory()
                 .stateInViewModel(viewModelScope, null)
 
         val imageDirectory: StateFlow<String?> =
-            repository
+            settingsRepository
                 .getImageDirectory()
                 .stateInViewModel(viewModelScope, null)
 

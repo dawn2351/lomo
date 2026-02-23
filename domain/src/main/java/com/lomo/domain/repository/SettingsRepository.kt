@@ -3,11 +3,24 @@ package com.lomo.domain.repository
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for user preferences and directory configuration writes.
- * Read-only directory access (getRootDirectory, getImageDirectory, etc.) remains
- * on [MemoRepository] since CRUD ViewModels need it too.
+ * Repository interface for user preferences and directory configuration.
  */
 interface SettingsRepository {
+    // Directory reads
+    fun getRootDirectory(): Flow<String?>
+
+    suspend fun getRootDirectoryOnce(): String?
+
+    fun getRootDisplayName(): Flow<String?>
+
+    fun getImageDirectory(): Flow<String?>
+
+    fun getImageDisplayName(): Flow<String?>
+
+    fun getVoiceDirectory(): Flow<String?>
+
+    fun getVoiceDisplayName(): Flow<String?>
+
     // Directory writes
     suspend fun setRootDirectory(path: String)
 

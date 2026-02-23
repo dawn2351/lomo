@@ -55,15 +55,11 @@ object DataModule {
     @Singleton
     fun provideMemoRepositoryImpl(
         dao: MemoDao,
-        dataSource: com.lomo.data.source.FileDataSource,
         synchronizer: com.lomo.data.repository.MemoSynchronizer,
-        dataStore: com.lomo.data.local.datastore.LomoDataStore,
     ): MemoRepositoryImpl =
         MemoRepositoryImpl(
             dao,
-            dataSource,
             synchronizer,
-            dataStore,
         )
 
     @Provides

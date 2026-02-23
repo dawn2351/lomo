@@ -54,12 +54,12 @@ class MainViewModelTest {
         updateManager = mockk(relaxed = true)
 
         every { imageMapProvider.imageMap } returns MutableStateFlow(emptyMap())
-        every { repository.getRootDirectory() } returns flowOf<String?>(null)
-        coEvery { repository.getRootDirectoryOnce() } returns null
-        every { repository.getImageDirectory() } returns flowOf<String?>(null)
-        every { repository.getVoiceDirectory() } returns flowOf<String?>(null)
         every { repository.isSyncing() } returns flowOf(false)
         every { repository.getActiveDayCount() } returns flowOf(0)
+        every { settingsRepository.getRootDirectory() } returns flowOf<String?>(null)
+        coEvery { settingsRepository.getRootDirectoryOnce() } returns null
+        every { settingsRepository.getImageDirectory() } returns flowOf<String?>(null)
+        every { settingsRepository.getVoiceDirectory() } returns flowOf<String?>(null)
 
         every { settingsRepository.getDateFormat() } returns flowOf("yyyy-MM-dd")
         every { settingsRepository.getTimeFormat() } returns flowOf("HH:mm")

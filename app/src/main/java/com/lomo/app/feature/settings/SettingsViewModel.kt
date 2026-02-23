@@ -3,7 +3,6 @@ package com.lomo.app.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lomo.data.util.PreferenceKeys
-import com.lomo.domain.repository.MemoRepository
 import com.lomo.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,23 +16,22 @@ import javax.inject.Inject
 class SettingsViewModel
     @Inject
     constructor(
-        private val repository: MemoRepository,
         private val settings: SettingsRepository,
     ) : ViewModel() {
         val rootDirectory: StateFlow<String> =
-            repository
+            settings
                 .getRootDisplayName()
                 .map { it ?: "" }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
         val imageDirectory: StateFlow<String> =
-            repository
+            settings
                 .getImageDisplayName()
                 .map { it ?: "" }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
         val voiceDirectory: StateFlow<String> =
-            repository
+            settings
                 .getVoiceDisplayName()
                 .map { it ?: "" }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")

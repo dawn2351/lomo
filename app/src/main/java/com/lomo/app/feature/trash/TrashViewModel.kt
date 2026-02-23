@@ -38,7 +38,7 @@ class TrashViewModel
 
         val imageMap: StateFlow<Map<String, android.net.Uri>> = imageMapProvider.imageMap
         val imageDirectory: StateFlow<String?> =
-            repository.getImageDirectory().stateIn(
+            settingsRepository.getImageDirectory().stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5000),
                 null,
@@ -67,7 +67,7 @@ class TrashViewModel
                 .stateInViewModel(viewModelScope, defaultPreferences)
 
         val rootDirectory: StateFlow<String?> =
-            repository
+            settingsRepository
                 .getRootDirectory()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
