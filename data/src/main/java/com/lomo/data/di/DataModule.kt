@@ -64,17 +64,6 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideMemoSynchronizer(
-        refreshEngine: com.lomo.data.repository.MemoRefreshEngine,
-        mutationHandler: com.lomo.data.repository.MemoMutationHandler,
-    ): com.lomo.data.repository.MemoSynchronizer =
-        com.lomo.data.repository.MemoSynchronizer(
-            refreshEngine,
-            mutationHandler,
-        )
-
-    @Provides
-    @Singleton
     fun provideMemoRepositoryImpl(
         dao: MemoDao,
         dataSource: com.lomo.data.source.FileDataSource,
