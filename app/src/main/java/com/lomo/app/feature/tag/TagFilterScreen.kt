@@ -1,10 +1,5 @@
 package com.lomo.app.feature.tag
 
-import android.net.Uri
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.snap
@@ -33,20 +28,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lomo.app.feature.memo.MemoEditorSheetHost
+import com.lomo.app.feature.memo.rememberMemoEditorController
 import com.lomo.ui.component.card.MemoCard
 import com.lomo.ui.component.common.EmptyState
 import com.lomo.ui.component.menu.MemoMenuHost
 import com.lomo.ui.util.formatAsDateTime
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -69,75 +62,13 @@ fun TagFilterScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val haptic = com.lomo.ui.util.LocalAppHapticFeedback.current
     val context = LocalContext.current
-
-    var showInputSheet by remember { mutableStateOf(false) }
-    var editingMemo by remember { mutableStateOf<com.lomo.domain.model.Memo?>(null) }
-    var inputText by remember {
-        mutableStateOf(
-            androidx.compose.ui.text.input
-                .TextFieldValue(""),
-        )
-    }
-    var pendingCameraFile by remember { mutableStateOf<File?>(null) }
-    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
-
-    fun appendImageMarkdown(path: String) {
-        val markdown = "![image]($path)"
-        val current = inputText.text
-        val newText = if (current.isEmpty()) markdown else "$current\n$markdown"
-        inputText =
-            androidx.compose.ui.text.input
-                .TextFieldValue(
-                    newText,
-                    androidx.compose.ui.text
-                        .TextRange(newText.length),
-                )
-    }
-
-    val imagePicker =
-        rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-            uri?.let { viewModel.saveImage(it, ::appendImageMarkdown) }
-        }
-
-    val cameraLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { isSuccess ->
-            val file = pendingCameraFile
-            val uri = pendingCameraUri
-            if (isSuccess && uri != null) {
-                viewModel.saveImage(
-                    uri = uri,
-                    onResult = { path ->
-                        appendImageMarkdown(path)
-                        runCatching { file?.delete() }
-                        pendingCameraFile = null
-                        pendingCameraUri = null
-                    },
-                    onError = {
-                        runCatching { file?.delete() }
-                        pendingCameraFile = null
-                        pendingCameraUri = null
-                    },
-                )
-            } else {
-                runCatching { file?.delete() }
-                pendingCameraFile = null
-                pendingCameraUri = null
-            }
-        }
+    val editorController = rememberMemoEditorController()
 
     MemoMenuHost(
         onEdit = { state ->
             val memo = state.memo as? com.lomo.domain.model.Memo
             if (memo != null) {
-                editingMemo = memo
-                inputText =
-                    androidx.compose.ui.text.input
-                        .TextFieldValue(
-                            memo.content,
-                            androidx.compose.ui.text
-                                .TextRange(memo.content.length),
-                        )
-                showInputSheet = true
+                editorController.openForEdit(memo)
             }
         },
         onDelete = { state ->
@@ -258,14 +189,7 @@ fun TagFilterScreen(
                                 onDoubleClick =
                                     if (doubleTapEditEnabled) {
                                         {
-                                            editingMemo = memo
-                                            inputText =
-                                                androidx.compose.ui.text.input.TextFieldValue(
-                                                    memo.content,
-                                                    androidx.compose.ui.text
-                                                        .TextRange(memo.content.length),
-                                                )
-                                            showInputSheet = true
+                                            editorController.openForEdit(memo)
                                         }
                                     } else {
                                         null
@@ -289,66 +213,12 @@ fun TagFilterScreen(
             }
         }
 
-        if (showInputSheet) {
-            com.lomo.ui.component.input.InputSheet(
-                inputValue = inputText,
-                onInputValueChange = { inputText = it },
-                onDismiss = {
-                    showInputSheet = false
-                    inputText =
-                        androidx.compose.ui.text.input
-                            .TextFieldValue("")
-                    editingMemo = null
-                },
-                onSubmit = { content ->
-                    editingMemo?.let { viewModel.updateMemo(it, content) }
-                    showInputSheet = false
-                    inputText =
-                        androidx.compose.ui.text.input
-                            .TextFieldValue("")
-                    editingMemo = null
-                },
-                onImageClick = {
-                    if (imageDirectory == null) {
-                        Toast
-                            .makeText(
-                                context,
-                                context.getString(com.lomo.app.R.string.settings_not_set),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                    } else {
-                        imagePicker.launch(
-                            PickVisualMediaRequest(
-                                ActivityResultContracts.PickVisualMedia.ImageOnly,
-                            ),
-                        )
-                    }
-                },
-                onCameraClick = {
-                    if (imageDirectory == null) {
-                        Toast
-                            .makeText(
-                                context,
-                                context.getString(com.lomo.app.R.string.settings_not_set),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                    } else {
-                        runCatching {
-                            val (file, uri) =
-                                com.lomo.app.util.CameraCaptureUtils
-                                    .createTempCaptureUri(context)
-                            pendingCameraFile = file
-                            pendingCameraUri = uri
-                            cameraLauncher.launch(uri)
-                        }.onFailure {
-                            runCatching { pendingCameraFile?.delete() }
-                            pendingCameraFile = null
-                            pendingCameraUri = null
-                        }
-                    }
-                },
-                availableTags = emptyList(),
-            )
-        }
+        MemoEditorSheetHost(
+            controller = editorController,
+            imageDirectory = imageDirectory,
+            onSaveImage = viewModel::saveImage,
+            onSubmit = viewModel::updateMemo,
+            availableTags = emptyList(),
+        )
     }
 }
