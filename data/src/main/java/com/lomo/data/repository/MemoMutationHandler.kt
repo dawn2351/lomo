@@ -3,24 +3,23 @@ package com.lomo.data.repository
 import android.net.Uri
 import com.lomo.data.local.dao.LocalFileStateDao
 import com.lomo.data.local.dao.MemoDao
+import com.lomo.data.local.datastore.LomoDataStore
 import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFtsEntity
-import com.lomo.data.local.entity.TrashMemoEntity
 import com.lomo.data.source.FileDataSource
 import com.lomo.data.source.MemoDirectoryType
 import com.lomo.data.util.MemoTextProcessor
+import com.lomo.data.util.SearchTokenizer
 import com.lomo.domain.model.Memo
 import kotlinx.coroutines.flow.first
-import timber.log.Timber
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 /**
- * Handles memo mutation workflow (file-first + db update).
- * Keeps file editing and CRUD out of [MemoSynchronizer] to avoid god-object growth.
+ * Handles active memo mutations (save/update). Trash lifecycle is delegated to [MemoTrashMutationHandler].
  */
 class MemoMutationHandler
     @Inject
@@ -30,7 +29,8 @@ class MemoMutationHandler
         private val localFileStateDao: LocalFileStateDao,
         private val savePlanFactory: MemoSavePlanFactory,
         private val textProcessor: MemoTextProcessor,
-        private val dataStore: com.lomo.data.local.datastore.LomoDataStore,
+        private val dataStore: LomoDataStore,
+        private val trashMutationHandler: MemoTrashMutationHandler,
     ) {
         suspend fun saveMemo(
             content: String,
@@ -42,9 +42,9 @@ class MemoMutationHandler
                 DateTimeFormatter
                     .ofPattern(filenameFormat)
                     .format(
-                        java.time.Instant
+                        Instant
                             .ofEpochMilli(timestamp)
-                            .atZone(java.time.ZoneId.systemDefault()),
+                            .atZone(ZoneId.systemDefault()),
                     ) + ".md"
             val existingFileContent = fileDataSource.readFileIn(MemoDirectoryType.MAIN, candidateFilename).orEmpty()
             val savePlan =
@@ -55,26 +55,19 @@ class MemoMutationHandler
                     timestampFormat = timestampFormat,
                     existingFileContent = existingFileContent,
                 )
-            val fileContentToAppend = "\n${savePlan.rawContent}"
 
             val savedUriString =
                 fileDataSource.saveFileIn(
                     directory = MemoDirectoryType.MAIN,
                     filename = savePlan.filename,
-                    content = fileContentToAppend,
+                    content = "\n${savePlan.rawContent}",
                     append = true,
                 )
             val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, savePlan.filename)
             if (metadata == null) throw java.io.IOException("Failed to read metadata after save")
             upsertMainState(savePlan.filename, metadata.lastModified, savedUriString)
 
-            val entity = MemoEntity.fromDomain(savePlan.memo)
-            dao.insertMemo(entity)
-            dao.replaceTagRefsForMemo(entity)
-            val tokenizedContent =
-                com.lomo.data.util.SearchTokenizer
-                    .tokenize(entity.content)
-            dao.insertMemoFts(MemoFtsEntity(entity.id, tokenizedContent))
+            persistMainMemoEntity(MemoEntity.fromDomain(savePlan.memo))
         }
 
         suspend fun updateMemo(
@@ -82,14 +75,12 @@ class MemoMutationHandler
             newContent: String,
         ) {
             if (newContent.isBlank()) {
-                deleteMemoInternal(memo)
+                trashMutationHandler.moveToTrash(memo)
                 return
             }
-
             if (dao.getMemo(memo.id) == null) return
 
             val timestampFormat = dataStore.storageTimestampFormat.first()
-
             val filename = memo.date + ".md"
             val updatedMemo =
                 memo.copy(
@@ -99,14 +90,12 @@ class MemoMutationHandler
                     tags = textProcessor.extractTags(newContent),
                     imageUrls = textProcessor.extractImages(newContent),
                 )
-
             val timeString =
                 DateTimeFormatter
                     .ofPattern(timestampFormat)
                     .withZone(ZoneId.systemDefault())
                     .format(Instant.ofEpochMilli(memo.timestamp))
-            val newRawContentFull = "- $timeString $newContent"
-            val finalUpdatedMemo = updatedMemo.copy(rawContent = newRawContentFull)
+            val finalUpdatedMemo = updatedMemo.copy(rawContent = "- $timeString $newContent")
 
             val cachedUriString = getMainSafUri(filename)
             val currentFileContent =
@@ -126,9 +115,8 @@ class MemoMutationHandler
                         memo.timestamp,
                         newContent,
                         timeString,
-                        memoId = memo.id,
+                        memo.id,
                     )
-
                 if (success) {
                     val savedUri =
                         fileDataSource.saveFileIn(
@@ -137,180 +125,32 @@ class MemoMutationHandler
                             content = lines.joinToString("\n"),
                             append = false,
                         )
-
                     val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
                     if (metadata != null) {
                         upsertMainState(filename, metadata.lastModified, savedUri)
                     }
-
-                    val finalEntity = MemoEntity.fromDomain(finalUpdatedMemo)
-                    dao.insertMemo(finalEntity)
-                    dao.replaceTagRefsForMemo(finalEntity)
-                    val tokenizedContent =
-                        com.lomo.data.util.SearchTokenizer
-                            .tokenize(finalEntity.content)
-                    dao.insertMemoFts(MemoFtsEntity(finalEntity.id, tokenizedContent))
+                    persistMainMemoEntity(MemoEntity.fromDomain(finalUpdatedMemo))
                 }
             }
         }
 
         suspend fun deleteMemo(memo: Memo) {
-            deleteMemoInternal(memo)
+            trashMutationHandler.moveToTrash(memo)
         }
 
         suspend fun restoreMemo(memo: Memo) {
-            val filename = memo.date + ".md"
-            val trashContent = fileDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return
-            val trashLines = trashContent.lines().toMutableList()
-
-            val (start, end) =
-                textProcessor.findMemoBlock(trashLines, memo.rawContent, memo.timestamp, memo.id)
-            if (start != -1) {
-                val restoredLines = trashLines.subList(start, end + 1).toList()
-                if (textProcessor.removeMemoBlock(trashLines, memo.rawContent, memo.timestamp, memo.id)) {
-                    val restoredBlock = "\n" + restoredLines.joinToString("\n") + "\n"
-                    fileDataSource.saveFileIn(
-                        directory = MemoDirectoryType.MAIN,
-                        filename = filename,
-                        content = restoredBlock,
-                        append = true,
-                    )
-
-                    val remainingTrash = trashLines.joinToString("\n").trim()
-                    if (remainingTrash.isEmpty()) {
-                        fileDataSource.deleteFileIn(MemoDirectoryType.TRASH, filename)
-                        localFileStateDao.deleteByFilename(filename, true)
-                    } else {
-                        fileDataSource.saveFileIn(
-                            directory = MemoDirectoryType.TRASH,
-                            filename = filename,
-                            content = trashLines.joinToString("\n"),
-                            append = false,
-                        )
-                        val trashMetadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.TRASH, filename)
-                        if (trashMetadata != null) {
-                            upsertTrashState(filename, trashMetadata.lastModified)
-                        }
-                    }
-
-                    val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
-                    if (metadata != null) {
-                        upsertMainState(filename, metadata.lastModified)
-                    }
-
-                    val entity = MemoEntity.fromDomain(memo.copy(isDeleted = false))
-                    dao.insertMemo(entity)
-                    dao.replaceTagRefsForMemo(entity)
-                    dao.deleteTrashMemoById(memo.id)
-                    val tokenized =
-                        com.lomo.data.util.SearchTokenizer
-                            .tokenize(entity.content)
-                    dao.insertMemoFts(MemoFtsEntity(entity.id, tokenized))
-                } else {
-                    Timber.e("restoreMemo: Failed to find memo block in trash file for ${memo.id}")
-                }
-            }
+            trashMutationHandler.restoreFromTrash(memo)
         }
 
         suspend fun deletePermanently(memo: Memo) {
-            val filename = memo.date + ".md"
-            val trashContent = fileDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return
-            val trashLines = trashContent.lines().toMutableList()
-
-            if (textProcessor.removeMemoBlock(trashLines, memo.rawContent, memo.timestamp, memo.id)) {
-                val remainingContent = trashLines.joinToString("\n").trim()
-                if (remainingContent.isEmpty()) {
-                    fileDataSource.deleteFileIn(MemoDirectoryType.TRASH, filename)
-                    localFileStateDao.deleteByFilename(filename, true)
-                } else {
-                    fileDataSource.saveFileIn(
-                        directory = MemoDirectoryType.TRASH,
-                        filename = filename,
-                        content = trashLines.joinToString("\n"),
-                        append = false,
-                    )
-                }
-
-                dao.deleteTrashMemoById(memo.id)
-            } else {
-                Timber.e("deletePermanently: Failed to find block for ${memo.id}")
-            }
-
-            if (memo.imageUrls.isNotEmpty()) {
-                memo.imageUrls.forEach { path ->
-                    if (path.isNotBlank()) {
-                        val count = dao.countMemosWithImage(path, memo.id)
-                        if (count == 0) {
-                            if (isVoiceFile(path)) {
-                                fileDataSource.deleteVoiceFile(path)
-                            } else {
-                                fileDataSource.deleteImage(path)
-                            }
-                        }
-                    }
-                }
-            }
+            trashMutationHandler.deleteFromTrashPermanently(memo)
         }
 
-        private suspend fun deleteMemoInternal(memo: Memo) {
-            val filename = memo.date + ".md"
-            val cachedUriString = getMainSafUri(filename)
-            val currentFileContent =
-                if (cachedUriString != null) {
-                    fileDataSource.readFile(Uri.parse(cachedUriString))
-                        ?: fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
-                } else {
-                    fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
-                }
-            if (currentFileContent == null) return
-            val lines = currentFileContent.lines().toMutableList()
-
-            val (start, end) = textProcessor.findMemoBlock(lines, memo.rawContent, memo.timestamp, memo.id)
-            if (start != -1 && end >= start) {
-                val linesToTrash = lines.subList(start, end + 1)
-                val trashContent = "\n" + linesToTrash.joinToString("\n") + "\n"
-
-                if (textProcessor.removeMemoBlock(lines, memo.rawContent, memo.timestamp, memo.id)) {
-                    fileDataSource.saveFileIn(
-                        directory = MemoDirectoryType.TRASH,
-                        filename = filename,
-                        content = trashContent,
-                        append = true,
-                    )
-
-                    val remainingContent = lines.joinToString("\n").trim()
-                    if (remainingContent.isEmpty()) {
-                        val uriToDelete = if (cachedUriString != null) Uri.parse(cachedUriString) else null
-                        fileDataSource.deleteFileIn(MemoDirectoryType.MAIN, filename, uriToDelete)
-                        localFileStateDao.deleteByFilename(filename, false)
-                    } else {
-                        val uriToSave = if (cachedUriString != null) Uri.parse(cachedUriString) else null
-                        val savedUri =
-                            fileDataSource.saveFileIn(
-                                directory = MemoDirectoryType.MAIN,
-                                filename = filename,
-                                content = lines.joinToString("\n"),
-                                append = false,
-                                uri = uriToSave,
-                            )
-
-                        val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
-                        if (metadata != null) {
-                            upsertMainState(filename, metadata.lastModified, savedUri)
-                        }
-                    }
-
-                    val trashMetadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.TRASH, filename)
-                    if (trashMetadata != null) {
-                        upsertTrashState(filename, trashMetadata.lastModified)
-                    }
-
-                    dao.deleteMemoById(memo.id)
-                    dao.deleteTagRefsByMemoId(memo.id)
-                    dao.deleteMemoFts(memo.id)
-                    dao.insertTrashMemo(TrashMemoEntity.fromDomain(memo.copy(isDeleted = true)))
-                }
-            }
+        private suspend fun persistMainMemoEntity(entity: MemoEntity) {
+            dao.insertMemo(entity)
+            dao.replaceTagRefsForMemo(entity)
+            val tokenizedContent = SearchTokenizer.tokenize(entity.content)
+            dao.insertMemoFts(MemoFtsEntity(entity.id, tokenizedContent))
         }
 
         private suspend fun getMainSafUri(filename: String): String? = localFileStateDao.getByFilename(filename, false)?.safUri
@@ -330,23 +170,4 @@ class MemoMutationHandler
                 ),
             )
         }
-
-        private suspend fun upsertTrashState(
-            filename: String,
-            lastModified: Long,
-        ) {
-            localFileStateDao.upsert(
-                LocalFileStateEntity(
-                    filename = filename,
-                    isTrash = true,
-                    lastKnownModifiedTime = lastModified,
-                ),
-            )
-        }
-
-        private fun isVoiceFile(filename: String): Boolean =
-            filename.endsWith(".m4a", ignoreCase = true) ||
-                filename.endsWith(".mp3", ignoreCase = true) ||
-                filename.endsWith(".aac", ignoreCase = true) ||
-                filename.startsWith("voice_", ignoreCase = true)
     }

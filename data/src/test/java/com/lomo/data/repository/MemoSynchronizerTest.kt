@@ -59,6 +59,12 @@ class MemoSynchronizerTest {
                 MemoSavePlanFactory(parser, processor),
                 processor,
                 dataStore,
+                MemoTrashMutationHandler(
+                    fileDataSource,
+                    memoDao,
+                    localFileStateDao,
+                    processor,
+                ),
             )
         val refreshEngine =
             MemoRefreshEngine(
