@@ -159,6 +159,17 @@ fun MainScreen(
     // Directory Setup Dialog State (Hoisted)
     var directorySetupType by remember { mutableStateOf<DirectorySetupType?>(null) }
 
+    // Track scroll to top for new memo insertions
+    var pendingNewMemoScroll by remember { mutableStateOf(false) }
+
+    // LaunchedEffect to scroll to top once the new memo is actually inserted in the data source
+    LaunchedEffect(uiMemos.size) {
+        if (pendingNewMemoScroll && uiMemos.isNotEmpty()) {
+            pendingNewMemoScroll = false
+            listState.animateScrollToItem(0)
+        }
+    }
+
     // Shared Content Observation
     val sharedContent by viewModel.sharedContent.collectAsStateWithLifecycle()
 
@@ -569,9 +580,7 @@ fun MainScreen(
 
                     // Bug 2 fix: Scroll to top after creating new memo
                     if (isNewMemo) {
-                        scope.launch {
-                            listState.animateScrollToItem(0)
-                        }
+                        pendingNewMemoScroll = true
                     }
                 },
                 onImageClick = {
