@@ -10,6 +10,8 @@ import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.MemoTagCrossRefEntity
 import com.lomo.data.local.entity.TrashMemoEntity
 
+const val MEMO_DATABASE_VERSION = 20
+
 @Database(
     entities =
         [
@@ -19,7 +21,7 @@ import com.lomo.data.local.entity.TrashMemoEntity
             MemoTagCrossRefEntity::class,
             LocalFileStateEntity::class,
         ],
-    version = 20,
+    version = MEMO_DATABASE_VERSION,
     exportSchema = false,
 )
 abstract class MemoDatabase : RoomDatabase() {

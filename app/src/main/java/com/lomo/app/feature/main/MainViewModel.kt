@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -306,6 +307,7 @@ class MainViewModel
 
             // Trigger sync in background whenever image directory changes
             imageDirectory
+                .drop(1)
                 .onEach { path: String? ->
                     if (path != null) {
                         memoActionDelegate.syncImageCacheBestEffort()

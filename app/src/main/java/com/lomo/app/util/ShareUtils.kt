@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
@@ -40,9 +41,9 @@ import androidx.core.content.FileProvider
 import com.lomo.app.R
 import java.io.File
 import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Utility object for sharing and copying memo content.
@@ -50,6 +51,7 @@ import java.util.Locale
 object ShareUtils {
     private const val TAG = "ShareUtils"
     private const val MAX_SHARE_CONTENT_CHARS = 4000
+    private const val MAX_SHARE_BITMAP_HEIGHT_PX = 4096
     private val markdownTextProcessor =
         com.lomo.data.util
             .MemoTextProcessor()
@@ -84,6 +86,7 @@ object ShareUtils {
         context: Context,
         content: String,
         title: String? = null,
+        hostView: View? = null,
         style: String = "warm",
         showTime: Boolean = true,
         timestamp: Long? = null,
@@ -96,6 +99,7 @@ object ShareUtils {
                     context = context,
                     content = content,
                     title = title,
+                    hostView = hostView,
                     config =
                         ShareCardConfig(
                             style = style,
@@ -179,9 +183,10 @@ object ShareUtils {
         context: Context,
         content: String,
         title: String?,
+        hostView: View?,
         config: ShareCardConfig,
     ): android.net.Uri {
-        val bitmap = createMemoCardBitmap(context, content, title, config)
+        val bitmap = createMemoCardBitmap(context, content, title, hostView, config)
         val dir = File(context.cacheDir, "shared_memos").apply { mkdirs() }
         val file = File(dir, "memo_share_${System.currentTimeMillis()}.png")
         FileOutputStream(file).use { out ->
@@ -199,12 +204,14 @@ object ShareUtils {
         context: Context,
         content: String,
         title: String?,
+        hostView: View?,
         config: ShareCardConfig,
     ): Bitmap =
         createMemoCardBitmapWithCompose(
             context = context,
             content = content,
             title = title,
+            hostView = hostView,
             config = config,
         )
 
@@ -212,26 +219,19 @@ object ShareUtils {
         context: Context,
         content: String,
         title: String?,
+        hostView: View?,
         config: ShareCardConfig,
     ): Bitmap {
         val resources = context.resources
         val tags = buildShareTags(config.tags, content)
-        val bodyTextWithoutTags = removeInlineTags(content, tags)
-        val renderedMarkdownText = renderMarkdownForShare(context, bodyTextWithoutTags)
-        val safeText =
-            renderedMarkdownText
-                .trim()
-                .ifEmpty { context.getString(R.string.app_name) }
-                .let {
-                    if (it.length <= MAX_SHARE_CONTENT_CHARS) {
-                        it
-                    } else {
-                        it.take(MAX_SHARE_CONTENT_CHARS) + "\n…"
-                    }
-                }
+        val safeText = prepareShareBodyText(context, content, tags)
         val palette = resolvePalette(config.style)
         val createdAtMillis = config.timestampMillis ?: System.currentTimeMillis()
-        val createdAtText = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(createdAtMillis))
+        val createdAtText =
+            DateTimeFormatter
+                .ofPattern("yyyy-MM-dd HH:mm")
+                .withZone(ZoneId.systemDefault())
+                .format(Instant.ofEpochMilli(createdAtMillis))
         val activeDayCountText =
             config.activeDayCount
                 ?.takeIf { it > 0 }
@@ -243,11 +243,23 @@ object ShareUtils {
         val canvasWidth = (resources.displayMetrics.widthPixels.coerceAtLeast(720) * 0.9f).toInt()
         val composeView =
             ComposeView(context).apply {
-                context.findComponentActivity()?.let { activity ->
-                    // Off-screen ComposeView rendering still needs the same tree owners as on-screen hosts.
-                    setTag(androidx.lifecycle.runtime.R.id.view_tree_lifecycle_owner, activity)
-                    setTag(androidx.lifecycle.viewmodel.R.id.view_tree_view_model_store_owner, activity)
-                    setTag(androidx.savedstate.R.id.view_tree_saved_state_registry_owner, activity)
+                // Prefer exact owners from current host view; fallback to activity-level owners.
+                val lifecycleOwner =
+                    hostView?.getTag(androidx.lifecycle.runtime.R.id.view_tree_lifecycle_owner) ?: context.findComponentActivity()
+                val viewModelStoreOwner =
+                    hostView?.getTag(androidx.lifecycle.viewmodel.R.id.view_tree_view_model_store_owner)
+                        ?: context.findComponentActivity()
+                val savedStateOwner =
+                    hostView?.getTag(androidx.savedstate.R.id.view_tree_saved_state_registry_owner)
+                        ?: context.findComponentActivity()
+                setTag(androidx.lifecycle.runtime.R.id.view_tree_lifecycle_owner, lifecycleOwner)
+                setTag(androidx.lifecycle.viewmodel.R.id.view_tree_view_model_store_owner, viewModelStoreOwner)
+                setTag(androidx.savedstate.R.id.view_tree_saved_state_registry_owner, savedStateOwner)
+                hostView?.let { source ->
+                    layoutDirection = source.layoutDirection
+                    if (source is ViewGroup) {
+                        clipChildren = source.clipChildren
+                    }
                 }
                 setContent {
                     ShareCardLayout(
@@ -263,16 +275,73 @@ object ShareUtils {
                 }
             }
 
-        val widthSpec = View.MeasureSpec.makeMeasureSpec(canvasWidth, View.MeasureSpec.EXACTLY)
-        val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        composeView.measure(widthSpec, heightSpec)
-        val measuredHeight = composeView.measuredHeight.coerceAtLeast((resources.displayMetrics.density * 220f).toInt())
-        composeView.layout(0, 0, canvasWidth, measuredHeight)
-
-        return Bitmap.createBitmap(canvasWidth, measuredHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
-            val canvas = Canvas(bitmap)
-            composeView.draw(canvas)
+        val attachParent = resolveOffscreenRenderParent(context, hostView)
+        if (attachParent != null) {
+            composeView.alpha = 0f
+            composeView.visibility = View.INVISIBLE
+            composeView.layoutParams =
+                ViewGroup.LayoutParams(
+                    canvasWidth,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                )
+            attachParent.addView(composeView)
         }
+
+        return try {
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(canvasWidth, View.MeasureSpec.EXACTLY)
+            val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            composeView.measure(widthSpec, heightSpec)
+            var measuredHeight =
+                composeView.measuredHeight
+                    .coerceAtLeast((resources.displayMetrics.density * 220f).toInt())
+                    .coerceAtMost(MAX_SHARE_BITMAP_HEIGHT_PX)
+            composeView.layout(0, 0, canvasWidth, measuredHeight)
+
+            // Measure/layout once again so an off-screen first composition can settle before capture.
+            composeView.measure(widthSpec, heightSpec)
+            measuredHeight =
+                composeView.measuredHeight
+                    .coerceAtLeast((resources.displayMetrics.density * 220f).toInt())
+                    .coerceAtMost(MAX_SHARE_BITMAP_HEIGHT_PX)
+            composeView.layout(0, 0, canvasWidth, measuredHeight)
+
+            Bitmap.createBitmap(canvasWidth, measuredHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
+                val canvas = Canvas(bitmap)
+                canvas.drawColor(android.graphics.Color.WHITE)
+                composeView.draw(canvas)
+            }
+        } finally {
+            (composeView.parent as? ViewGroup)?.removeView(composeView)
+            composeView.disposeComposition()
+        }
+    }
+
+    private fun prepareShareBodyText(
+        context: Context,
+        content: String,
+        tags: List<String>,
+    ): String {
+        val bodyTextWithoutTags = removeInlineTags(content, tags)
+        val renderedMarkdownText = renderMarkdownForShare(context, bodyTextWithoutTags)
+        return renderedMarkdownText
+            .trim()
+            .ifEmpty { context.getString(R.string.app_name) }
+            .let {
+                if (it.length <= MAX_SHARE_CONTENT_CHARS) {
+                    it
+                } else {
+                    it.take(MAX_SHARE_CONTENT_CHARS) + "\n..."
+                }
+            }
+    }
+
+    private fun resolveOffscreenRenderParent(
+        context: Context,
+        hostView: View?,
+    ): ViewGroup? {
+        val hostRoot = hostView?.rootView as? ViewGroup
+        if (hostRoot != null) return hostRoot
+        return context.findComponentActivity()?.window?.decorView as? ViewGroup
     }
 
     private tailrec fun Context.findComponentActivity(): ComponentActivity? =
@@ -329,64 +398,74 @@ object ShareUtils {
                             color = Color(palette.card),
                             shape = RoundedCornerShape(28.dp),
                         ).padding(26.dp),
+                verticalArrangement =
+                    if (showFooter) {
+                        Arrangement.SpaceBetween
+                    } else {
+                        Arrangement.Top
+                    },
             ) {
-                if (tags.isNotEmpty()) {
-                    Text(
-                        text = tags.take(6).joinToString(separator = "   ") { "#$it" },
-                        color = Color(palette.tagText),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
+                Column {
+                    if (tags.isNotEmpty()) {
+                        Text(
+                            text = tags.take(6).joinToString(separator = "   ") { "#$it" },
+                            color = Color(palette.tagText),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
 
-                if (!title.isNullOrBlank()) {
+                    if (!title.isNullOrBlank()) {
+                        Text(
+                            text = title,
+                            color = Color(palette.secondaryText),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
                     Text(
-                        text = title,
-                        color = Color(palette.secondaryText),
-                        fontSize = 14.sp,
+                        text = bodyText,
+                        color = Color(palette.bodyText),
+                        fontSize = bodyTextSize,
+                        lineHeight = (bodyTextSize.value * 1.32f).sp,
                         fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
                 }
-
-                Text(
-                    text = bodyText,
-                    color = Color(palette.bodyText),
-                    fontSize = bodyTextSize,
-                    lineHeight = (bodyTextSize.value * 1.32f).sp,
-                    fontWeight = FontWeight.Medium,
-                )
 
                 if (showFooter) {
-                    Spacer(modifier = Modifier.height(18.dp))
-                    HorizontalDivider(color = Color(palette.divider))
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (showTime) {
-                            Text(
-                                text = createdAtText,
-                                color = Color(palette.secondaryText),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
+                    Column {
+                        Spacer(modifier = Modifier.height(18.dp))
+                        HorizontalDivider(color = Color(palette.divider))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (showTime) {
+                                Text(
+                                    text = createdAtText,
+                                    color = Color(palette.secondaryText),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
 
-                        if (activeDayCountText.isNotBlank()) {
-                            Text(
-                                text = activeDayCountText,
-                                color = Color(palette.secondaryText),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
+                            if (activeDayCountText.isNotBlank()) {
+                                Text(
+                                    text = activeDayCountText,
+                                    color = Color(palette.secondaryText),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
                         }
                     }
                 }

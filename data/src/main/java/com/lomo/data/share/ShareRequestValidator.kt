@@ -2,8 +2,10 @@ package com.lomo.data.share
 
 import com.lomo.data.share.LomoShareServer.PrepareRequest
 import com.lomo.data.share.LomoShareServer.TransferMetadata
-import java.util.Base64
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
+@OptIn(ExperimentalEncodingApi::class)
 internal class ShareRequestValidator {
     fun validatePrepareRequest(request: PrepareRequest): String? {
         if (request.senderName.isBlank() || request.senderName.length > MAX_SENDER_NAME_CHARS) {
@@ -156,7 +158,7 @@ internal class ShareRequestValidator {
     private fun isValidContentNonce(nonceBase64: String): Boolean {
         if (nonceBase64.isBlank() || nonceBase64.length > MAX_NONCE_BASE64_CHARS) return false
         return try {
-            Base64.getDecoder().decode(nonceBase64).size == 12
+            Base64.Default.decode(nonceBase64).size == 12
         } catch (_: Exception) {
             false
         }

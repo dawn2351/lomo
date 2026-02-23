@@ -3,7 +3,6 @@ package com.lomo.ui.util
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Centralized date/time formatting utility.
@@ -11,7 +10,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object DateTimeUtils {
     // Use lazy for thread-safe initialization
-    private val formatterCache by lazy { ConcurrentHashMap<String, DateTimeFormatter>() }
+    private val cacheLock = Any()
+    private val formatterCache by lazy { mutableMapOf<String, DateTimeFormatter>() }
     private val defaultZone by lazy { ZoneId.systemDefault() }
 
     /**
@@ -26,8 +26,10 @@ object DateTimeUtils {
     ): String =
         try {
             val formatter =
-                formatterCache.computeIfAbsent(pattern) {
-                    DateTimeFormatter.ofPattern(it).withZone(defaultZone)
+                synchronized(cacheLock) {
+                    formatterCache.getOrPut(pattern) {
+                        DateTimeFormatter.ofPattern(pattern).withZone(defaultZone)
+                    }
                 }
             formatter.format(Instant.ofEpochMilli(timestamp))
         } catch (e: Exception) {

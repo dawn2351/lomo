@@ -12,9 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 /**
@@ -34,6 +33,10 @@ class RecordingViewModel
         private val mediaRepository: MediaRepository,
         private val voiceRecorder: VoiceRecorder,
     ) : ViewModel() {
+        companion object {
+            private val VOICE_FILE_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+        }
+
         private val _isRecording = MutableStateFlow(false)
         val isRecording: StateFlow<Boolean> = _isRecording
 
@@ -58,7 +61,7 @@ class RecordingViewModel
         fun startRecording() {
             viewModelScope.launch {
                 try {
-                    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    val timestamp = VOICE_FILE_TIMESTAMP_FORMATTER.format(LocalDateTime.now())
                     val filename = "voice_$timestamp.m4a"
 
                     // 1. Create file via repository (handles Voice Backend logic)

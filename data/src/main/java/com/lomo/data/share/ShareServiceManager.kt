@@ -29,12 +29,15 @@ import timber.log.Timber
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * Unified manager for LAN share services: NSD discovery, HTTP server, and HTTP client.
  * Coordinates the full send/receive lifecycle.
  */
 @Singleton
+@OptIn(ExperimentalUuidApi::class)
 class ShareServiceManager
     @Inject
     constructor(
@@ -74,10 +77,7 @@ class ShareServiceManager
         val lanShareDeviceName = dataStore.lanShareDeviceName.map { sanitizeDeviceName(it) ?: getFallbackDeviceName() }
 
         private var serverPort: Int = 0
-        private val localUuid =
-            java.util.UUID
-                .randomUUID()
-                .toString()
+        private val localUuid = Uuid.random().toString()
         private val serviceStateLock = Any()
 
         @Volatile

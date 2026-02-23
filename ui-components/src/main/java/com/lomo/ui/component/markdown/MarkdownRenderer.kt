@@ -652,20 +652,24 @@ private fun MDImage(
 
 private object ImageRatioCache {
     private const val MAX_CACHE_SIZE = 200
+    private val lock = Any()
     private val cache =
-        java.util.Collections.synchronizedMap(
-            object : LinkedHashMap<String, Float>(MAX_CACHE_SIZE, 0.75f, true) {
-                override fun removeEldestEntry(eldest: Map.Entry<String, Float>): Boolean = size > MAX_CACHE_SIZE
-            },
-        )
+        object : LinkedHashMap<String, Float>(MAX_CACHE_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, Float>): Boolean = size > MAX_CACHE_SIZE
+        }
 
-    fun get(url: String): Float? = cache[url]
+    fun get(url: String): Float? =
+        synchronized(lock) {
+            cache[url]
+        }
 
     fun put(
         url: String,
         ratio: Float,
     ) {
-        cache[url] = ratio
+        synchronized(lock) {
+            cache[url] = ratio
+        }
     }
 }
 

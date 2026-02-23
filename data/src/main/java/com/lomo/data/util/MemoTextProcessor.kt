@@ -13,19 +13,13 @@ class MemoTextProcessor
             private val MEMO_BLOCK_END = Regex("^\\s*-\\s+\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s|$).*")
             private val MEMO_BLOCK_HEADER = Regex("^\\s*-\\s+(\\d{1,2}:\\d{2}(?::\\d{2})?)(?:\\s+(.*))?$")
             private val MEMO_ID_PATTERN = Regex("^(.*)_(\\d{1,2}:\\d{2}(?::\\d{2})?)_([0-9a-f]+)(?:_(\\d+))?$")
-            private val TAG_PATTERN =
-                java.util.regex.Pattern
-                    .compile("(?:^|\\s)#([\\p{L}\\p{N}_][\\p{L}\\p{N}_/]*)")
-            private val MD_IMAGE_PATTERN =
-                java.util.regex.Pattern
-                    .compile("!\\[.*?\\]\\((.*?)\\)")
-            private val WIKI_IMAGE_PATTERN =
-                java.util.regex.Pattern
-                    .compile("!\\[\\[(.*?)\\]\\]")
+            private val TAG_PATTERN = Regex("(?:^|\\s)#([\\p{L}\\p{N}_][\\p{L}\\p{N}_/]*)")
+            private val MD_IMAGE_PATTERN = Regex("!\\[.*?\\]\\((.*?)\\)")
+            private val WIKI_IMAGE_PATTERN = Regex("!\\[\\[(.*?)\\]\\]")
             private val AUDIO_LINK_PATTERN =
-                java.util.regex.Pattern.compile(
+                Regex(
                     "(?<!!)\\[[^\\]]*\\]\\((.+?\\.(?:m4a|mp3|ogg|wav|aac))\\)",
-                    java.util.regex.Pattern.CASE_INSENSITIVE,
+                    RegexOption.IGNORE_CASE,
                 )
         }
 
@@ -154,38 +148,28 @@ class MemoTextProcessor
         }
 
         fun extractTags(content: String): List<String> {
-            val matcher = TAG_PATTERN.matcher(content)
-            val tags = mutableListOf<String>()
-            while (matcher.find()) {
-                matcher.group(1)?.let { tag ->
-                    val cleanTag = tag.trimEnd('/')
-                    if (cleanTag.isNotEmpty()) tags.add(cleanTag)
+            val tags =
+                TAG_PATTERN.findAll(content).mapNotNull { match ->
+                    match.groupValues
+                        .getOrNull(1)
+                        ?.trimEnd('/')
+                        .takeUnless { it.isNullOrEmpty() }
                 }
-            }
-            return tags.distinct()
+            return tags.distinct().toList()
         }
 
         fun extractImages(content: String): List<String> {
-            val images = mutableListOf<String>()
-            val mdMatcher = MD_IMAGE_PATTERN.matcher(content)
-            while (mdMatcher.find()) {
-                mdMatcher.group(1)?.let { images.add(it) }
-            }
-            val wikiMatcher = WIKI_IMAGE_PATTERN.matcher(content)
-            while (wikiMatcher.find()) {
-                wikiMatcher.group(1)?.let { images.add(it) }
-            }
-            return images
+            val markdownImages = MD_IMAGE_PATTERN.findAll(content).mapNotNull { it.groupValues.getOrNull(1) }
+            val wikiImages = WIKI_IMAGE_PATTERN.findAll(content).mapNotNull { it.groupValues.getOrNull(1) }
+            return (markdownImages + wikiImages).toList()
         }
 
-        fun extractAudioLinks(content: String): List<String> {
-            val audioLinks = mutableListOf<String>()
-            val matcher = AUDIO_LINK_PATTERN.matcher(content)
-            while (matcher.find()) {
-                matcher.group(1)?.let { audioLinks.add(it) }
-            }
-            return audioLinks
-        }
+        fun extractAudioLinks(content: String): List<String> =
+            AUDIO_LINK_PATTERN
+                .findAll(content)
+                .mapNotNull {
+                    it.groupValues.getOrNull(1)
+                }.toList()
 
         fun extractLocalAttachmentPaths(content: String): List<String> =
             (extractImages(content) + extractAudioLinks(content))

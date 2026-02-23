@@ -12,7 +12,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
 import java.time.format.ResolverStyle
 import java.util.Locale
-import java.util.regex.Pattern
 import javax.inject.Inject
 
 class MarkdownParser
@@ -47,15 +46,15 @@ class MarkdownParser
                     .toFormatter(Locale.US)
         }
 
-        // Use lazy delegation for expensive Pattern compilation
-        // Pattern is only compiled when first accessed, saving initialization cost
+        // Use lazy delegation for expensive regex compilation.
+        // Regex is only compiled when first accessed, saving initialization cost.
         // Regex: - HH:mm:ss [Content]
         // Flexible:
         // ^\s*-\s+ : Allow leading whitespace, dash, and one or more spaces
         // (\d{1,2}:\d{2}(?::\d{2})?) : Capture HH:mm or HH:mm:ss
         // (?:\s+(.*))?$ : Optional space and remaining content
         private val timePattern by lazy {
-            Pattern.compile("^\\s*-\\s+(\\d{1,2}:\\d{2}(?::\\d{2})?)(?:\\s+(.*))?$")
+            Regex("^\\s*-\\s+(\\d{1,2}:\\d{2}(?::\\d{2})?)(?:\\s+(.*))?$")
         }
 
         fun parseFile(file: File): List<Memo> {
@@ -133,11 +132,11 @@ class MarkdownParser
             }
 
             for (line in lines) {
-                val matcher = timePattern.matcher(line)
-                if (matcher.find()) {
+                val match = timePattern.matchEntire(line)
+                if (match != null) {
                     addMemo()
-                    currentTimestamp = matcher.group(1) ?: ""
-                    val contentPart = matcher.group(2) ?: ""
+                    currentTimestamp = match.groupValues.getOrElse(1) { "" }
+                    val contentPart = match.groupValues.getOrElse(2) { "" }
                     currentContentBuilder = StringBuilder(contentPart)
                     currentRawBuilder = StringBuilder(line)
                 } else {

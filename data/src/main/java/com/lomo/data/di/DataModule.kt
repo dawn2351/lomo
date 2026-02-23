@@ -3,6 +3,9 @@ package com.lomo.data.di
 import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.lomo.data.local.ALL_DATABASE_MIGRATIONS
+import com.lomo.data.local.DatabaseTransitionStrategy
+import com.lomo.data.local.MEMO_DATABASE_VERSION
 import com.lomo.data.local.MemoDatabase
 import com.lomo.data.local.dao.LocalFileStateDao
 import com.lomo.data.local.dao.MemoDao
@@ -26,13 +29,31 @@ object DataModule {
     @Singleton
     fun provideMemoDatabase(
         @ApplicationContext context: Context,
-    ): MemoDatabase =
-        Room
-            .databaseBuilder(context, MemoDatabase::class.java, "lomo.db")
-            .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-            .addMigrations(com.lomo.data.local.MIGRATION_18_19, com.lomo.data.local.MIGRATION_19_20)
-            .fallbackToDestructiveMigration(true)
-            .build()
+    ): MemoDatabase {
+        val migrations = ALL_DATABASE_MIGRATIONS.toList()
+        DatabaseTransitionStrategy.prepareBeforeOpen(
+            context = context,
+            targetVersion = MEMO_DATABASE_VERSION,
+            migrations = migrations,
+        )
+        val fallbackFromVersions =
+            DatabaseTransitionStrategy.fallbackToDestructiveFromVersions(
+                migrations = migrations,
+                targetVersion = MEMO_DATABASE_VERSION,
+            )
+
+        val builder =
+            Room
+                .databaseBuilder(context, MemoDatabase::class.java, DatabaseTransitionStrategy.DATABASE_NAME)
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                .addMigrations(*ALL_DATABASE_MIGRATIONS)
+                .addCallback(DatabaseTransitionStrategy.cleanupLegacyArtifactsCallback())
+                .fallbackToDestructiveMigrationOnDowngrade(true)
+        if (fallbackFromVersions.isNotEmpty()) {
+            builder.fallbackToDestructiveMigrationFrom(true, *fallbackFromVersions)
+        }
+        return builder.build()
+    }
 
     @Provides
     @Singleton

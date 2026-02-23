@@ -23,6 +23,7 @@ class MainStartupCoordinator
         suspend fun initializeRootDirectory(): String? {
             val rootDirectory = settingsRepository.getRootDirectoryOnce()
             audioPlayerManager.setRootDirectory(rootDirectory)
+            warmImageCacheOnStartup()
             resyncCachesIfAppVersionChanged(rootDirectory)
             return rootDirectory
         }
@@ -41,6 +42,14 @@ class MainStartupCoordinator
                 .onEach { voiceDirectory ->
                     audioPlayerManager.setVoiceDirectory(voiceDirectory)
                 }
+
+        private suspend fun warmImageCacheOnStartup() {
+            try {
+                mediaRepository.syncImageCache()
+            } catch (_: Exception) {
+                // best-effort cache warm-up
+            }
+        }
 
         private suspend fun resyncCachesIfAppVersionChanged(rootDir: String?) {
             val currentVersion = "${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})"

@@ -48,3 +48,9 @@ val MIGRATION_19_20: Migration =
             db.execSQL("DROP TABLE IF EXISTS image_cache")
         }
     }
+
+val ALL_DATABASE_MIGRATIONS =
+    arrayOf(
+        MIGRATION_18_19,
+        MIGRATION_19_20,
+    )

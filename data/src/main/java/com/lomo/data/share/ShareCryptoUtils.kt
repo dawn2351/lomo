@@ -2,16 +2,18 @@ package com.lomo.data.share
 
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Content encryption helpers for LAN share payloads.
  *
  * All memo content and attachment bytes are encrypted with AES-GCM before transport.
  */
+@OptIn(ExperimentalEncodingApi::class)
 internal object ShareCryptoUtils {
     private const val NONCE_BYTES = 12
     private const val TAG_BITS = 128
@@ -34,7 +36,7 @@ internal object ShareCryptoUtils {
     ): EncryptedText {
         val encrypted = encryptBytesInternal(keyHex, plaintext.toByteArray(Charsets.UTF_8), aad)
         return EncryptedText(
-            ciphertextBase64 = Base64.getEncoder().encodeToString(encrypted.ciphertext),
+            ciphertextBase64 = Base64.Default.encode(encrypted.ciphertext),
             nonceBase64 = encrypted.nonceBase64,
         )
     }
@@ -46,7 +48,7 @@ internal object ShareCryptoUtils {
         aad: String? = null,
     ): String? =
         try {
-            val ciphertext = Base64.getDecoder().decode(ciphertextBase64)
+            val ciphertext = Base64.Default.decode(ciphertextBase64)
             val plaintext = decryptBytesInternal(keyHex, ciphertext, nonceBase64, aad)
             plaintext?.toString(Charsets.UTF_8)
         } catch (_: Exception) {
@@ -80,7 +82,7 @@ internal object ShareCryptoUtils {
         val encrypted = cipher.doFinal(plaintext)
         return EncryptedBytes(
             ciphertext = encrypted,
-            nonceBase64 = Base64.getEncoder().encodeToString(nonce),
+            nonceBase64 = Base64.Default.encode(nonce),
         )
     }
 
@@ -91,7 +93,7 @@ internal object ShareCryptoUtils {
         aad: String?,
     ): ByteArray? {
         return try {
-            val nonce = Base64.getDecoder().decode(nonceBase64)
+            val nonce = Base64.Default.decode(nonceBase64)
             if (nonce.size != NONCE_BYTES) return null
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(deriveEncryptionKey(keyHex), "AES"), GCMParameterSpec(TAG_BITS, nonce))

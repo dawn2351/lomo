@@ -25,11 +25,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.security.MessageDigest
-import java.util.UUID
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * Ktor-based embedded HTTP server that handles incoming share requests from LAN peers.
  */
+@OptIn(ExperimentalUuidApi::class)
 class LomoShareServer {
     companion object {
         private const val TAG = "LomoShareServer"
@@ -200,7 +202,7 @@ class LomoShareServer {
                                 }
                             val sessionToken =
                                 if (accepted) {
-                                    val token = UUID.randomUUID().toString()
+                                    val token = Uuid.random().toString()
                                     synchronized(stateLock) {
                                         approvedSessions[token] =
                                             ApprovedSession(

@@ -2,6 +2,7 @@ package com.lomo.app.feature.memo
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import com.lomo.app.util.ShareUtils
 import com.lomo.domain.model.Memo
 import com.lomo.ui.component.menu.MemoMenuHost
@@ -21,6 +22,7 @@ fun MemoMenuBinder(
     content: @Composable (showMenu: (MemoMenuState) -> Unit) -> Unit,
 ) {
     val context = LocalContext.current
+    val hostView = LocalView.current
 
     MemoMenuHost(
         onEdit = { state ->
@@ -40,6 +42,7 @@ fun MemoMenuBinder(
             ShareUtils.shareMemoAsImage(
                 context = context,
                 content = state.content,
+                hostView = hostView,
                 style = shareCardStyle,
                 showTime = shareCardShowTime,
                 timestamp = memo?.timestamp,
