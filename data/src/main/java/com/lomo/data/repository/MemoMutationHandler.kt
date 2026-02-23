@@ -7,7 +7,6 @@ import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.TrashMemoEntity
-import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.source.FileDataSource
 import com.lomo.data.source.MemoDirectoryType
 import com.lomo.data.util.MemoTextProcessor
@@ -29,7 +28,7 @@ class MemoMutationHandler
         private val fileDataSource: FileDataSource,
         private val dao: MemoDao,
         private val localFileStateDao: LocalFileStateDao,
-        private val parser: MarkdownParser,
+        private val savePlanFactory: MemoSavePlanFactory,
         private val textProcessor: MemoTextProcessor,
         private val dataStore: com.lomo.data.local.datastore.LomoDataStore,
     ) {
@@ -39,72 +38,37 @@ class MemoMutationHandler
         ) {
             val filenameFormat = dataStore.storageFilenameFormat.first()
             val timestampFormat = dataStore.storageTimestampFormat.first()
-
-            val instant = Instant.ofEpochMilli(timestamp)
-            val zoneId = ZoneId.systemDefault()
-            val filename =
+            val candidateFilename =
                 DateTimeFormatter
                     .ofPattern(filenameFormat)
-                    .withZone(zoneId)
-                    .format(instant) + ".md"
-            val timeString =
-                DateTimeFormatter
-                    .ofPattern(timestampFormat)
-                    .withZone(zoneId)
-                    .format(instant)
-            val dateString = filename.removeSuffix(".md")
-            val baseCanonicalTimestamp =
-                parser.resolveTimestamp(
-                    dateStr = dateString,
-                    timeStr = timeString,
-                    fallbackTimestampMillis = timestamp,
-                )
-            val existingFileContent = fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename).orEmpty()
-            val sameTimestampCount = countTimestampOccurrences(existingFileContent, timeString)
-            val safeOffset = if (sameTimestampCount > 999) 999 else sameTimestampCount
-            val canonicalTimestamp = baseCanonicalTimestamp + safeOffset
-
-            val contentHash =
-                content.trim().hashCode().let {
-                    kotlin.math.abs(it).toString(16)
-                }
-            val baseId = "${filename.removeSuffix(".md")}_${timeString}_$contentHash"
-            val collisionIndex =
-                countBaseIdCollisionsInFile(
-                    fileContent = existingFileContent,
-                    dateString = dateString,
-                    fallbackTimestampMillis = timestamp,
-                    baseId = baseId,
-                )
-            val optimisticId = if (collisionIndex == 0) baseId else "${baseId}_$collisionIndex"
-
-            val rawContent = "- $timeString $content"
-            val fileContentToAppend = "\n$rawContent"
-
-            val newMemo =
-                Memo(
-                    id = optimisticId,
+                    .format(
+                        java.time.Instant
+                            .ofEpochMilli(timestamp)
+                            .atZone(java.time.ZoneId.systemDefault()),
+                    ) + ".md"
+            val existingFileContent = fileDataSource.readFileIn(MemoDirectoryType.MAIN, candidateFilename).orEmpty()
+            val savePlan =
+                savePlanFactory.create(
                     content = content,
-                    date = dateString,
-                    timestamp = canonicalTimestamp,
-                    rawContent = rawContent,
-                    tags = textProcessor.extractTags(content),
-                    imageUrls = textProcessor.extractImages(content),
-                    isDeleted = false,
+                    timestamp = timestamp,
+                    filenameFormat = filenameFormat,
+                    timestampFormat = timestampFormat,
+                    existingFileContent = existingFileContent,
                 )
+            val fileContentToAppend = "\n${savePlan.rawContent}"
 
             val savedUriString =
                 fileDataSource.saveFileIn(
                     directory = MemoDirectoryType.MAIN,
-                    filename = filename,
+                    filename = savePlan.filename,
                     content = fileContentToAppend,
                     append = true,
                 )
-            val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
+            val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, savePlan.filename)
             if (metadata == null) throw java.io.IOException("Failed to read metadata after save")
-            upsertMainState(filename, metadata.lastModified, savedUriString)
+            upsertMainState(savePlan.filename, metadata.lastModified, savedUriString)
 
-            val entity = MemoEntity.fromDomain(newMemo)
+            val entity = MemoEntity.fromDomain(savePlan.memo)
             dao.insertMemo(entity)
             dao.replaceTagRefsForMemo(entity)
             val tokenizedContent =
@@ -385,34 +349,4 @@ class MemoMutationHandler
                 filename.endsWith(".mp3", ignoreCase = true) ||
                 filename.endsWith(".aac", ignoreCase = true) ||
                 filename.startsWith("voice_", ignoreCase = true)
-
-        private fun countTimestampOccurrences(
-            fileContent: String,
-            timestamp: String,
-        ): Int {
-            if (fileContent.isBlank()) return 0
-            val pattern = Regex("^\\s*-\\s+${Regex.escape(timestamp)}(?:\\s|$).*")
-            return fileContent.lineSequence().count { line ->
-                pattern.matches(line)
-            }
-        }
-
-        private fun countBaseIdCollisionsInFile(
-            fileContent: String,
-            dateString: String,
-            fallbackTimestampMillis: Long,
-            baseId: String,
-        ): Int {
-            if (fileContent.isBlank()) return 0
-
-            val collisionPrefix = "${baseId}_"
-            return parser
-                .parseContent(
-                    content = fileContent,
-                    filename = dateString,
-                    fallbackTimestampMillis = fallbackTimestampMillis,
-                ).count { memo ->
-                    memo.id == baseId || memo.id.startsWith(collisionPrefix)
-                }
-        }
     }

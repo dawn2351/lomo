@@ -56,7 +56,7 @@ class MemoSynchronizerTest {
                 fileDataSource,
                 memoDao,
                 localFileStateDao,
-                parser,
+                MemoSavePlanFactory(parser, processor),
                 processor,
                 dataStore,
             )
