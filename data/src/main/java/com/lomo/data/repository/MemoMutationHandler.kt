@@ -9,6 +9,7 @@ import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.TrashMemoEntity
 import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MemoDirectoryType
 import com.lomo.data.util.MemoTextProcessor
 import com.lomo.domain.model.Memo
 import kotlinx.coroutines.flow.first
@@ -58,7 +59,7 @@ class MemoMutationHandler
                     timeStr = timeString,
                     fallbackTimestampMillis = timestamp,
                 )
-            val existingFileContent = fileDataSource.readFile(filename).orEmpty()
+            val existingFileContent = fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename).orEmpty()
             val sameTimestampCount = countTimestampOccurrences(existingFileContent, timeString)
             val safeOffset = if (sameTimestampCount > 999) 999 else sameTimestampCount
             val canonicalTimestamp = baseCanonicalTimestamp + safeOffset
@@ -92,8 +93,14 @@ class MemoMutationHandler
                     isDeleted = false,
                 )
 
-            val savedUriString = fileDataSource.saveFile(filename, fileContentToAppend, append = true)
-            val metadata = fileDataSource.getFileMetadata(filename)
+            val savedUriString =
+                fileDataSource.saveFileIn(
+                    directory = MemoDirectoryType.MAIN,
+                    filename = filename,
+                    content = fileContentToAppend,
+                    append = true,
+                )
+            val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
             if (metadata == null) throw java.io.IOException("Failed to read metadata after save")
             upsertMainState(filename, metadata.lastModified, savedUriString)
 
@@ -141,9 +148,9 @@ class MemoMutationHandler
             val currentFileContent =
                 if (cachedUriString != null) {
                     fileDataSource.readFile(Uri.parse(cachedUriString))
-                        ?: fileDataSource.readFile(filename)
+                        ?: fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 } else {
-                    fileDataSource.readFile(filename)
+                    fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 }
 
             if (currentFileContent != null) {
@@ -159,9 +166,15 @@ class MemoMutationHandler
                     )
 
                 if (success) {
-                    val savedUri = fileDataSource.saveFile(filename, lines.joinToString("\n"), append = false)
+                    val savedUri =
+                        fileDataSource.saveFileIn(
+                            directory = MemoDirectoryType.MAIN,
+                            filename = filename,
+                            content = lines.joinToString("\n"),
+                            append = false,
+                        )
 
-                    val metadata = fileDataSource.getFileMetadata(filename)
+                    val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
                     if (metadata != null) {
                         upsertMainState(filename, metadata.lastModified, savedUri)
                     }
@@ -183,7 +196,7 @@ class MemoMutationHandler
 
         suspend fun restoreMemo(memo: Memo) {
             val filename = memo.date + ".md"
-            val trashContent = fileDataSource.readTrashFile(filename) ?: return
+            val trashContent = fileDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return
             val trashLines = trashContent.lines().toMutableList()
 
             val (start, end) =
@@ -192,25 +205,31 @@ class MemoMutationHandler
                 val restoredLines = trashLines.subList(start, end + 1).toList()
                 if (textProcessor.removeMemoBlock(trashLines, memo.rawContent, memo.timestamp, memo.id)) {
                     val restoredBlock = "\n" + restoredLines.joinToString("\n") + "\n"
-                    fileDataSource.saveFile(filename, restoredBlock, append = true)
+                    fileDataSource.saveFileIn(
+                        directory = MemoDirectoryType.MAIN,
+                        filename = filename,
+                        content = restoredBlock,
+                        append = true,
+                    )
 
                     val remainingTrash = trashLines.joinToString("\n").trim()
                     if (remainingTrash.isEmpty()) {
-                        fileDataSource.deleteTrashFile(filename)
+                        fileDataSource.deleteFileIn(MemoDirectoryType.TRASH, filename)
                         localFileStateDao.deleteByFilename(filename, true)
                     } else {
-                        fileDataSource.saveTrashFile(
-                            filename,
-                            trashLines.joinToString("\n"),
+                        fileDataSource.saveFileIn(
+                            directory = MemoDirectoryType.TRASH,
+                            filename = filename,
+                            content = trashLines.joinToString("\n"),
                             append = false,
                         )
-                        val trashMetadata = fileDataSource.getTrashFileMetadata(filename)
+                        val trashMetadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.TRASH, filename)
                         if (trashMetadata != null) {
                             upsertTrashState(filename, trashMetadata.lastModified)
                         }
                     }
 
-                    val metadata = fileDataSource.getFileMetadata(filename)
+                    val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
                     if (metadata != null) {
                         upsertMainState(filename, metadata.lastModified)
                     }
@@ -231,18 +250,19 @@ class MemoMutationHandler
 
         suspend fun deletePermanently(memo: Memo) {
             val filename = memo.date + ".md"
-            val trashContent = fileDataSource.readTrashFile(filename) ?: return
+            val trashContent = fileDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return
             val trashLines = trashContent.lines().toMutableList()
 
             if (textProcessor.removeMemoBlock(trashLines, memo.rawContent, memo.timestamp, memo.id)) {
                 val remainingContent = trashLines.joinToString("\n").trim()
                 if (remainingContent.isEmpty()) {
-                    fileDataSource.deleteTrashFile(filename)
+                    fileDataSource.deleteFileIn(MemoDirectoryType.TRASH, filename)
                     localFileStateDao.deleteByFilename(filename, true)
                 } else {
-                    fileDataSource.saveTrashFile(
-                        filename,
-                        trashLines.joinToString("\n"),
+                    fileDataSource.saveFileIn(
+                        directory = MemoDirectoryType.TRASH,
+                        filename = filename,
+                        content = trashLines.joinToString("\n"),
                         append = false,
                     )
                 }
@@ -274,9 +294,9 @@ class MemoMutationHandler
             val currentFileContent =
                 if (cachedUriString != null) {
                     fileDataSource.readFile(Uri.parse(cachedUriString))
-                        ?: fileDataSource.readFile(filename)
+                        ?: fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 } else {
-                    fileDataSource.readFile(filename)
+                    fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 }
             if (currentFileContent == null) return
             val lines = currentFileContent.lines().toMutableList()
@@ -287,24 +307,36 @@ class MemoMutationHandler
                 val trashContent = "\n" + linesToTrash.joinToString("\n") + "\n"
 
                 if (textProcessor.removeMemoBlock(lines, memo.rawContent, memo.timestamp, memo.id)) {
-                    fileDataSource.saveTrashFile(filename, trashContent)
+                    fileDataSource.saveFileIn(
+                        directory = MemoDirectoryType.TRASH,
+                        filename = filename,
+                        content = trashContent,
+                        append = true,
+                    )
 
                     val remainingContent = lines.joinToString("\n").trim()
                     if (remainingContent.isEmpty()) {
                         val uriToDelete = if (cachedUriString != null) Uri.parse(cachedUriString) else null
-                        fileDataSource.deleteFile(filename, uriToDelete)
+                        fileDataSource.deleteFileIn(MemoDirectoryType.MAIN, filename, uriToDelete)
                         localFileStateDao.deleteByFilename(filename, false)
                     } else {
                         val uriToSave = if (cachedUriString != null) Uri.parse(cachedUriString) else null
-                        val savedUri = fileDataSource.saveFile(filename, lines.joinToString("\n"), false, uriToSave)
+                        val savedUri =
+                            fileDataSource.saveFileIn(
+                                directory = MemoDirectoryType.MAIN,
+                                filename = filename,
+                                content = lines.joinToString("\n"),
+                                append = false,
+                                uri = uriToSave,
+                            )
 
-                        val metadata = fileDataSource.getFileMetadata(filename)
+                        val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
                         if (metadata != null) {
                             upsertMainState(filename, metadata.lastModified, savedUri)
                         }
                     }
 
-                    val trashMetadata = fileDataSource.getTrashFileMetadata(filename)
+                    val trashMetadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.TRASH, filename)
                     if (trashMetadata != null) {
                         upsertTrashState(filename, trashMetadata.lastModified)
                     }

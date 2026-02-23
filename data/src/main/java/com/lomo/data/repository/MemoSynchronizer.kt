@@ -8,6 +8,7 @@ import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.TrashMemoEntity
 import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MemoDirectoryType
 import com.lomo.domain.model.Memo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -40,7 +41,7 @@ class MemoSynchronizer
                     try {
                         if (targetFilename != null) {
                             // Target sync (keep existing logic but update metadata)
-                            val files = fileDataSource.listFiles(targetFilename)
+                            val files = fileDataSource.listFilesIn(MemoDirectoryType.MAIN, targetFilename)
                             if (files.isNotEmpty()) {
                                 syncFiles(files, isTrash = false)
                                 localFileStateDao.upsert(
@@ -59,8 +60,8 @@ class MemoSynchronizer
                         val syncMetadataMap =
                             localFileStateDao.getAll().associateBy { it.filename to it.isTrash }
                         // Use optimized methods that return Document IDs
-                        val mainFilesMetadata = fileDataSource.listMetadataWithIds()
-                        val trashFilesMetadata = fileDataSource.listTrashMetadataWithIds()
+                        val mainFilesMetadata = fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.MAIN)
+                        val trashFilesMetadata = fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.TRASH)
 
                         // Refresh SAF URI cache for main files while preserving sync timestamps.
                         val discoveredMainStates =
@@ -109,7 +110,11 @@ class MemoSynchronizer
                                     .map { meta ->
                                         async(Dispatchers.Default) {
                                             // Use Document ID for direct access (skips findFile traversal)
-                                            val content = fileDataSource.readFileByDocumentId(meta.documentId)
+                                            val content =
+                                                fileDataSource.readFileByDocumentIdIn(
+                                                    MemoDirectoryType.MAIN,
+                                                    meta.documentId,
+                                                )
                                             if (content != null) {
                                                 val filename = meta.filename.removeSuffix(".md")
                                                 val domainMemos =
@@ -147,7 +152,10 @@ class MemoSynchronizer
                                     .map { meta ->
                                         async(Dispatchers.Default) {
                                             val content =
-                                                fileDataSource.readTrashFileByDocumentId(meta.documentId)
+                                                fileDataSource.readFileByDocumentIdIn(
+                                                    MemoDirectoryType.TRASH,
+                                                    meta.documentId,
+                                                )
                                             if (content != null) {
                                                 val filename = meta.filename.removeSuffix(".md")
                                                 val domainMemos =

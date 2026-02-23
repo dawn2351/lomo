@@ -8,6 +8,7 @@ import com.lomo.data.source.FileContent
 import com.lomo.data.source.FileDataSource
 import com.lomo.data.source.FileMetadata
 import com.lomo.data.source.FileMetadataWithId
+import com.lomo.data.source.MemoDirectoryType
 import com.lomo.data.util.MemoTextProcessor
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
@@ -83,9 +84,9 @@ class MemoSynchronizerTest {
             val fileContent = "- 10:30:00 Test memo content"
 
             // Mock the incremental sync path
-            coEvery { fileDataSource.listMetadataWithIds() } returns listOf(metadata)
-            coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
-            coEvery { fileDataSource.readFileByDocumentId("doc123") } returns fileContent
+            coEvery { fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.MAIN) } returns listOf(metadata)
+            coEvery { fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.TRASH) } returns emptyList()
+            coEvery { fileDataSource.readFileByDocumentIdIn(MemoDirectoryType.MAIN, "doc123") } returns fileContent
             coEvery { localFileStateDao.getAll() } returns emptyList()
 
             synchronizer.refresh()
@@ -97,8 +98,8 @@ class MemoSynchronizerTest {
     @Test
     fun `refresh handles empty file list`() =
         runTest {
-            coEvery { fileDataSource.listMetadataWithIds() } returns emptyList()
-            coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
+            coEvery { fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.MAIN) } returns emptyList()
+            coEvery { fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.TRASH) } returns emptyList()
             coEvery { localFileStateDao.getAll() } returns emptyList()
 
             // Should not crash
@@ -116,7 +117,7 @@ class MemoSynchronizerTest {
                     lastModified = System.currentTimeMillis(),
                 )
 
-            coEvery { fileDataSource.listFiles("2024_01_15.md") } returns listOf(fileContent)
+            coEvery { fileDataSource.listFilesIn(MemoDirectoryType.MAIN, "2024_01_15.md") } returns listOf(fileContent)
 
             synchronizer.refresh(targetFilename = "2024_01_15.md")
 
@@ -140,8 +141,8 @@ class MemoSynchronizerTest {
                     lastKnownModifiedTime = 1000L, // Same as metadata - file unchanged
                 )
 
-            coEvery { fileDataSource.listMetadataWithIds() } returns listOf(metadata)
-            coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
+            coEvery { fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.MAIN) } returns listOf(metadata)
+            coEvery { fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.TRASH) } returns emptyList()
             coEvery { localFileStateDao.getAll() } returns listOf(syncEntity)
 
             synchronizer.refresh()
@@ -159,11 +160,27 @@ class MemoSynchronizerTest {
 
             // Mock that memo doesn't exist (for unique ID check)
             coEvery { memoDao.getMemo(any()) } returns null
-            coEvery { fileDataSource.saveFile(any(), any(), any()) } returns "uri"
+            coEvery {
+                fileDataSource.saveFileIn(
+                    MemoDirectoryType.MAIN,
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } returns "uri"
 
             synchronizer.saveMemo(content, timestamp)
 
-            coVerify { fileDataSource.saveFile(any(), any(), eq(true)) } // append = true
+            coVerify {
+                fileDataSource.saveFileIn(
+                    MemoDirectoryType.MAIN,
+                    any(),
+                    any(),
+                    eq(true),
+                    any(),
+                )
+            } // append = true
         }
 
     @Test
@@ -174,12 +191,28 @@ class MemoSynchronizerTest {
 
             // Mock that memo doesn't exist (for unique ID check)
             coEvery { memoDao.getMemo(any()) } returns null
-            coEvery { fileDataSource.saveFile(any(), any(), any()) } returns "uri"
+            coEvery {
+                fileDataSource.saveFileIn(
+                    MemoDirectoryType.MAIN,
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } returns "uri"
 
             synchronizer.saveMemo(content, timestamp)
 
             // saveMemo always appends
-            coVerify { fileDataSource.saveFile(any(), any(), eq(true)) }
+            coVerify {
+                fileDataSource.saveFileIn(
+                    MemoDirectoryType.MAIN,
+                    any(),
+                    any(),
+                    eq(true),
+                    any(),
+                )
+            }
         }
 
     @Test
@@ -202,9 +235,22 @@ class MemoSynchronizerTest {
             coEvery { dataStore.storageFilenameFormat } returns kotlinx.coroutines.flow.flowOf("yyyy_MM_dd")
             coEvery { dataStore.storageTimestampFormat } returns kotlinx.coroutines.flow.flowOf("HH:mm")
             coEvery { memoDao.getMemo(any()) } returns null
-            coEvery { fileDataSource.readFile("2024_01_15.md") } returns null
-            coEvery { fileDataSource.saveFile(any(), any(), any()) } returns "uri"
-            coEvery { fileDataSource.getFileMetadata("2024_01_15.md") } returns FileMetadata("2024_01_15.md", 1000L)
+            coEvery { fileDataSource.readFileIn(MemoDirectoryType.MAIN, "2024_01_15.md") } returns null
+            coEvery {
+                fileDataSource.saveFileIn(
+                    MemoDirectoryType.MAIN,
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } returns "uri"
+            coEvery {
+                fileDataSource.getFileMetadataIn(
+                    MemoDirectoryType.MAIN,
+                    "2024_01_15.md",
+                )
+            } returns FileMetadata("2024_01_15.md", 1000L)
             coEvery { localFileStateDao.getByFilename("2024_01_15.md", false) } returns null
 
             val memoEntitySlot = slot<com.lomo.data.local.entity.MemoEntity>()
