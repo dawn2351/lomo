@@ -142,11 +142,9 @@ class MemoRepositoryImpl
 
         override suspend fun restoreMemo(memo: Memo) {
             synchronizer.restoreMemo(memo)
-            refreshMemos()
         }
 
         override suspend fun deletePermanently(memo: Memo) {
             synchronizer.deletePermanently(memo)
-            refreshMemos()
         }
     }
