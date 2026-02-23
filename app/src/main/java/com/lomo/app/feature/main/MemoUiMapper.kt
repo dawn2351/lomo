@@ -41,7 +41,7 @@ class MemoUiMapper
             isDeleting: Boolean = false,
         ): MemoUiModel {
             val processedContent = buildProcessedContent(memo.content, rootPath, imagePath, imageMap)
-            val parsedNode = parseMarkdownCached(processedContent)
+            val parsedNode = MarkdownParser.parse(processedContent)
             val imageUrls = extractImageUrls(processedContent)
 
             return MemoUiModel(
@@ -133,18 +133,6 @@ class MemoUiMapper
             return imageUrl
         }
 
-        private fun parseMarkdownCached(content: String): ImmutableNode {
-            synchronized(cacheLock) {
-                markdownCache[content]?.let { return it }
-            }
-
-            val parsed = MarkdownParser.parse(content)
-            synchronized(cacheLock) {
-                markdownCache[content] = parsed
-            }
-            return parsed
-        }
-
         private fun extractImageUrls(content: String): ImmutableList<String> {
             val imageUrls = mutableListOf<String>()
             EXTRACT_IMAGE_URL_REGEX.findAll(content).forEach { match ->
@@ -157,17 +145,9 @@ class MemoUiMapper
         }
 
         private companion object {
-            private const val MARKDOWN_CACHE_SIZE = 512
             private val WIKI_IMAGE_REGEX = Regex("!\\[\\[(.*?)\\]\\]")
             private val MARKDOWN_IMAGE_REGEX = Regex("!\\[(.*?)\\]\\((.*?)\\)")
             private val EXTRACT_IMAGE_URL_REGEX = Regex("!\\[.*?\\]\\((.*?)\\)")
             private val AUDIO_EXTENSIONS = setOf(".m4a", ".mp3", ".aac", ".wav")
         }
-
-        private val cacheLock = Any()
-
-        private val markdownCache =
-            object : LinkedHashMap<String, ImmutableNode>(MARKDOWN_CACHE_SIZE, 0.75f, true) {
-                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImmutableNode>): Boolean = size > MARKDOWN_CACHE_SIZE
-            }
     }

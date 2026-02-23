@@ -114,4 +114,29 @@ class MemoTextProcessorTest {
         assertTrue(removed)
         assertEquals(1, lines.size)
     }
+
+    @Test
+    fun `extractAudioLinks should include markdown audio links`() {
+        val content = "[audio](voice_001.m4a)\n[text](doc.txt)\n[clip](music.MP3)"
+
+        val links = processor.extractAudioLinks(content)
+
+        assertEquals(listOf("voice_001.m4a", "music.MP3"), links)
+    }
+
+    @Test
+    fun `extractLocalAttachmentPaths should merge image and audio and skip remote urls`() {
+        val content =
+            """
+            ![img](img_1.jpg)
+            ![[img_2.png]]
+            [audio](voice_001.m4a)
+            ![remote](https://example.com/a.jpg)
+            [remote-audio](http://example.com/b.mp3)
+            """.trimIndent()
+
+        val attachments = processor.extractLocalAttachmentPaths(content)
+
+        assertEquals(listOf("img_1.jpg", "img_2.png", "voice_001.m4a"), attachments)
+    }
 }

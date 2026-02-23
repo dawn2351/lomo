@@ -22,6 +22,11 @@ class MemoTextProcessor
             private val WIKI_IMAGE_PATTERN =
                 java.util.regex.Pattern
                     .compile("!\\[\\[(.*?)\\]\\]")
+            private val AUDIO_LINK_PATTERN =
+                java.util.regex.Pattern.compile(
+                    "(?<!!)\\[[^\\]]*\\]\\((.+?\\.(?:m4a|mp3|ogg|wav|aac))\\)",
+                    java.util.regex.Pattern.CASE_INSENSITIVE,
+                )
         }
 
         /**
@@ -178,6 +183,24 @@ class MemoTextProcessor
             }
             return images
         }
+
+        fun extractAudioLinks(content: String): List<String> {
+            val audioLinks = mutableListOf<String>()
+            val matcher = AUDIO_LINK_PATTERN.matcher(content)
+            while (matcher.find()) {
+                matcher.group(1)?.let { audioLinks.add(it) }
+            }
+            return audioLinks
+        }
+
+        fun extractLocalAttachmentPaths(content: String): List<String> =
+            (extractImages(content) + extractAudioLinks(content))
+                .map { it.trim() }
+                .filter { path ->
+                    path.isNotEmpty() &&
+                        !path.startsWith("http://", ignoreCase = true) &&
+                        !path.startsWith("https://", ignoreCase = true)
+                }.distinct()
 
         fun toggleCheckbox(
             content: String,

@@ -22,6 +22,7 @@ class ShareViewModel
     @Inject
     constructor(
         private val shareServiceManager: ShareServiceManager,
+        private val textProcessor: com.lomo.data.util.MemoTextProcessor,
         savedStateHandle: SavedStateHandle,
     ) : ViewModel() {
         val memoContent: String = savedStateHandle.get<String>("memoContent") ?: ""
@@ -124,36 +125,13 @@ class ShareViewModel
             Timber.d("ShareViewModel cleared: discovery stopped")
         }
 
-        /**
-         * Extract image and audio file references from memo content.
-         * Looks for patterns like ![image](filename.jpg) and [audio](filename.m4a)
-         */
         private fun extractAttachmentUris(content: String): Map<String, Uri> {
             val attachments = mutableMapOf<String, Uri>()
-
-            // Match image references: ![...](filename.ext)
-            val imagePattern = Regex("""!\[.*?]\((.+?)\)""")
-            imagePattern.findAll(content).forEach { match ->
-                val path = match.groupValues[1]
-                if (path.isNotEmpty() && !path.startsWith("http")) {
-                    try {
-                        attachments[path] = Uri.parse(path)
-                    } catch (e: Exception) {
-                        Timber.e(e, "Failed to parse image URI: $path")
-                    }
-                }
-            }
-
-            // Match audio references: [audio](filename.ext)
-            val audioPattern = Regex("""\[.*?]\((.+?\.(?:m4a|mp3|ogg|wav))\)""", RegexOption.IGNORE_CASE)
-            audioPattern.findAll(content).forEach { match ->
-                val path = match.groupValues[1]
-                if (path.isNotEmpty() && !path.startsWith("http")) {
-                    try {
-                        attachments[path] = Uri.parse(path)
-                    } catch (e: Exception) {
-                        Timber.e(e, "Failed to parse audio URI: $path")
-                    }
+            textProcessor.extractLocalAttachmentPaths(content).forEach { path ->
+                try {
+                    attachments[path] = Uri.parse(path)
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to parse attachment URI: $path")
                 }
             }
 
