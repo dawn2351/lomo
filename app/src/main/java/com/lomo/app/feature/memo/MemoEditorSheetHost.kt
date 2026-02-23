@@ -31,21 +31,35 @@ class MemoEditorController
         var inputValue by mutableStateOf(TextFieldValue(""))
             private set
 
+        fun openForCreate(initialText: String = "") {
+            editingMemo = null
+            inputValue = TextFieldValue(initialText, TextRange(initialText.length))
+            isVisible = true
+        }
+
         fun openForEdit(memo: Memo) {
             editingMemo = memo
             inputValue = TextFieldValue(memo.content, TextRange(memo.content.length))
             isVisible = true
         }
 
-        fun appendImageMarkdown(path: String) {
-            val markdown = "![image]($path)"
+        fun appendMarkdownBlock(markdown: String) {
             val current = inputValue.text
             val newText = if (current.isEmpty()) markdown else "$current\n$markdown"
             inputValue = TextFieldValue(newText, TextRange(newText.length))
         }
 
+        fun appendImageMarkdown(path: String) {
+            val markdown = "![image]($path)"
+            appendMarkdownBlock(markdown)
+        }
+
         fun updateInputValue(value: TextFieldValue) {
             inputValue = value
+        }
+
+        fun ensureVisible() {
+            isVisible = true
         }
 
         fun close() {
@@ -68,10 +82,20 @@ fun MemoEditorSheetHost(
         onError: (() -> Unit)?,
     ) -> Unit,
     onSubmit: (
-        memo: Memo,
+        memo: Memo?,
         content: String,
     ) -> Unit,
+    onDismiss: () -> Unit = {},
+    onImageDirectoryMissing: (() -> Unit)? = null,
+    onCameraCaptureError: ((Throwable) -> Unit)? = null,
     availableTags: List<String> = emptyList(),
+    isRecording: Boolean = false,
+    recordingDuration: Long = 0L,
+    recordingAmplitude: Int = 0,
+    onStartRecording: () -> Unit = {},
+    onStopRecording: () -> Unit = {},
+    onCancelRecording: () -> Unit = {},
+    hints: List<String> = emptyList(),
 ) {
     if (!controller.isVisible) return
 
@@ -119,22 +143,26 @@ fun MemoEditorSheetHost(
     com.lomo.ui.component.input.InputSheet(
         inputValue = controller.inputValue,
         onInputValueChange = controller::updateInputValue,
-        onDismiss = controller::close,
+        onDismiss = {
+            controller.close()
+            onDismiss()
+        },
         onSubmit = { content ->
-            val memo = controller.editingMemo
-            if (memo != null) {
-                onSubmit(memo, content)
-            }
+            onSubmit(controller.editingMemo, content)
             controller.close()
         },
         onImageClick = {
             if (imageDirectory == null) {
-                Toast
-                    .makeText(
-                        context,
-                        context.getString(R.string.settings_not_set),
-                        Toast.LENGTH_SHORT,
-                    ).show()
+                if (onImageDirectoryMissing != null) {
+                    onImageDirectoryMissing()
+                } else {
+                    Toast
+                        .makeText(
+                            context,
+                            context.getString(R.string.settings_not_set),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                }
             } else {
                 imagePicker.launch(
                     PickVisualMediaRequest(
@@ -145,12 +173,16 @@ fun MemoEditorSheetHost(
         },
         onCameraClick = {
             if (imageDirectory == null) {
-                Toast
-                    .makeText(
-                        context,
-                        context.getString(R.string.settings_not_set),
-                        Toast.LENGTH_SHORT,
-                    ).show()
+                if (onImageDirectoryMissing != null) {
+                    onImageDirectoryMissing()
+                } else {
+                    Toast
+                        .makeText(
+                            context,
+                            context.getString(R.string.settings_not_set),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                }
             } else {
                 runCatching {
                     val (file, uri) = CameraCaptureUtils.createTempCaptureUri(context)
@@ -159,9 +191,17 @@ fun MemoEditorSheetHost(
                     cameraLauncher.launch(uri)
                 }.onFailure {
                     clearPendingCapture()
+                    onCameraCaptureError?.invoke(it)
                 }
             }
         },
         availableTags = availableTags,
+        isRecording = isRecording,
+        recordingDuration = recordingDuration,
+        recordingAmplitude = recordingAmplitude,
+        onStartRecording = onStartRecording,
+        onStopRecording = onStopRecording,
+        onCancelRecording = onCancelRecording,
+        hints = hints,
     )
 }

@@ -1,8 +1,4 @@
 package com.lomo.app.feature.main
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -56,16 +52,15 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.core.layout.WindowSizeClass
 import com.lomo.app.R
+import com.lomo.app.feature.memo.MemoEditorSheetHost
 import com.lomo.app.feature.memo.MemoMenuBinder
 import com.lomo.app.feature.memo.memoMenuState
-import com.lomo.domain.model.Memo
-import com.lomo.ui.component.input.InputSheet
+import com.lomo.app.feature.memo.rememberMemoEditorController
 import com.lomo.ui.component.navigation.SidebarDrawer
 import com.lomo.ui.theme.MotionTokens
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
 
 /**
  * MainScreen with comprehensive audit improvements.
@@ -128,6 +123,7 @@ fun MainScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val imageDir by viewModel.imageDirectory.collectAsStateWithLifecycle()
+    val voiceDir by viewModel.voiceDirectory.collectAsStateWithLifecycle()
 
     // Manual pull-to-refresh is available for explicit data reload.
     val hasItems = uiMemos.isNotEmpty()
@@ -143,12 +139,9 @@ fun MainScreen(
             androidx.compose.foundation.lazy
                 .LazyListState()
         }
+    val editorController = rememberMemoEditorController()
 
     // Local UI State
-    var showInputSheet by remember { mutableStateOf(false) }
-    // var selectedMemo removed
-    var editingMemo by remember { mutableStateOf<Memo?>(null) }
-    var inputText by remember { mutableStateOf(TextFieldValue("")) }
     var isRefreshing by remember { mutableStateOf(false) }
 
     // Adaptive Layout
@@ -177,13 +170,13 @@ fun MainScreen(
         if (content != null) {
             when (content) {
                 is MainViewModel.SharedContent.Text -> {
-                    val cur = inputText.text
+                    val cur = editorController.inputValue.text
                     // Prevent duplicate processing if content is already in input (heuristic)
                     // But strictly, consumeSharedContent handles this.
                     // Just proceed.
                     val newText = if (cur.isEmpty()) content.content else "$cur\n${content.content}"
-                    inputText = TextFieldValue(newText, TextRange(newText.length))
-                    showInputSheet = true
+                    editorController.updateInputValue(TextFieldValue(newText, TextRange(newText.length)))
+                    editorController.ensureVisible()
                     viewModel.consumeSharedContent()
                 }
 
@@ -193,11 +186,8 @@ fun MainScreen(
                         viewModel.saveImage(
                             uri = content.uri,
                             onResult = { path ->
-                                val markdown = "![image]($path)"
-                                val cur = inputText.text
-                                val newText = if (cur.isEmpty()) markdown else "$cur\n$markdown"
-                                inputText = TextFieldValue(newText, TextRange(newText.length))
-                                showInputSheet = true
+                                editorController.appendImageMarkdown(path)
+                                editorController.ensureVisible()
                                 viewModel.consumeSharedContent()
                             },
                         )
@@ -224,17 +214,7 @@ fun MainScreen(
         shareCardStyle = shareCardStyle,
         shareCardShowTime = shareCardShowTime,
         activeDayCount = activeDayCount,
-        onEditMemo = { memo ->
-            editingMemo = memo
-            inputText =
-                androidx.compose.ui.text.input
-                    .TextFieldValue(
-                        memo.content,
-                        androidx.compose.ui.text
-                            .TextRange(memo.content.length),
-                    )
-            showInputSheet = true
-        },
+        onEditMemo = editorController::openForEdit,
         onDeleteMemo = viewModel::deleteMemo,
         onLanShare = onNavigateToShare,
     ) { showMenu ->
@@ -254,52 +234,6 @@ fun MainScreen(
             previousTag = selectedTag
             previousQuery = searchQuery
         }
-
-        // Image Picker
-        var pendingCameraFile by remember { mutableStateOf<File?>(null) }
-        var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
-
-        fun appendImageMarkdown(path: String) {
-            val markdown = "![image]($path)"
-            val current = inputText.text
-            val newText = if (current.isEmpty()) markdown else "$current\n$markdown"
-            inputText = TextFieldValue(newText, TextRange(newText.length))
-        }
-
-        val imagePicker =
-            rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-                uri?.let {
-                    viewModel.saveImage(it, ::appendImageMarkdown)
-                }
-            }
-
-        val cameraLauncher =
-            rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { isSuccess ->
-                val file = pendingCameraFile
-                val uri = pendingCameraUri
-                if (isSuccess && uri != null) {
-                    viewModel.saveImage(
-                        uri = uri,
-                        onResult = { path ->
-                            appendImageMarkdown(path)
-                            runCatching { file?.delete() }
-                            pendingCameraFile = null
-                            pendingCameraUri = null
-                        },
-                        onError = {
-                            runCatching { file?.delete() }
-                            pendingCameraFile = null
-                            pendingCameraUri = null
-                        },
-                    )
-                } else {
-                    runCatching { file?.delete() }
-                    pendingCameraFile = null
-                    pendingCameraUri = null
-                }
-            }
-
-        val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
 
         // Moved actions inside Provider to access LocalAppHapticFeedback
         com.lomo.ui.util.ProvideAppHapticFeedback(enabled = hapticEnabled) {
@@ -331,7 +265,7 @@ fun MainScreen(
                         onFabClick = {
                             haptic.longPress()
                             if (viewModel.uiState.value is MainViewModel.MainScreenState.Ready) {
-                                showInputSheet = true
+                                editorController.openForCreate()
                             } else {
                                 onNavigateToSettings()
                             }
@@ -475,11 +409,7 @@ fun MainScreen(
                                             dateFormat = dateFormat,
                                             timeFormat = timeFormat,
                                             onMemoClick = actions.onMemoClick,
-                                            onMemoDoubleClick = { memo ->
-                                                editingMemo = memo
-                                                inputText = TextFieldValue(memo.content, TextRange(memo.content.length))
-                                                showInputSheet = true
-                                            },
+                                            onMemoDoubleClick = editorController::openForEdit,
                                             doubleTapEditEnabled = doubleTapEditEnabled,
                                             onTagClick = actions.onSidebarTagClick,
                                             onImageClick = actions.onNavigateToImage,
@@ -525,102 +455,61 @@ fun MainScreen(
             }
         }
 
-        // Input Sheet
-        val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
-        val voiceDirectory by viewModel.voiceDirectory.collectAsStateWithLifecycle()
+        val allTags = remember(sidebarUiState.tags) { sidebarUiState.tags.map { it.name }.sorted() }
+        MemoEditorSheetHost(
+            controller = editorController,
+            imageDirectory = imageDir,
+            onSaveImage = viewModel::saveImage,
+            onSubmit = { memo, content ->
+                val isNewMemo = memo == null
+                if (memo != null) {
+                    viewModel.updateMemo(memo, content)
+                } else {
+                    viewModel.addMemo(content)
+                }
 
-        if (showInputSheet) {
-            val allTags = remember(sidebarUiState.tags) { sidebarUiState.tags.map { it.name }.sorted() }
-            InputSheet(
-                inputValue = inputText,
-                onInputValueChange = { inputText = it },
-                onDismiss = {
-                    showInputSheet = false
-                    inputText = TextFieldValue("")
-                    editingMemo = null
-                    viewModel.discardInputs()
+                if (isNewMemo) {
+                    pendingNewMemoScroll = true
+                }
+            },
+            onDismiss = viewModel::discardInputs,
+            onImageDirectoryMissing = { directorySetupType = DirectorySetupType.Image },
+            onCameraCaptureError = { error ->
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        error.message ?: context.getString(R.string.error_unknown),
+                    )
+                }
+            },
+            availableTags = allTags,
+            isRecording = isRecording,
+            recordingDuration = recordingDuration,
+            recordingAmplitude = recordingAmplitude,
+            onStartRecording = {
+                if (voiceDir == null) {
+                    directorySetupType = DirectorySetupType.Voice
+                } else {
+                    recordingViewModel.startRecording()
+                }
+            },
+            onCancelRecording = recordingViewModel::cancelRecording,
+            onStopRecording = {
+                recordingViewModel.stopRecording { markdown ->
+                    editorController.appendMarkdownBlock(markdown)
+                }
+            },
+            hints =
+                if (showInputHints) {
+                    listOf(
+                        stringResource(R.string.input_hint_1),
+                        stringResource(R.string.input_hint_2),
+                        stringResource(R.string.input_hint_3),
+                        stringResource(R.string.input_hint_4),
+                    )
+                } else {
+                    emptyList()
                 },
-                onSubmit = { content ->
-                    val isNewMemo = editingMemo == null
-                    editingMemo?.let { viewModel.updateMemo(it, content) }
-                        ?: viewModel.addMemo(content)
-                    showInputSheet = false
-                    inputText = TextFieldValue("")
-                    editingMemo = null
-
-                    // Bug 2 fix: Scroll to top after creating new memo
-                    if (isNewMemo) {
-                        pendingNewMemoScroll = true
-                    }
-                },
-                onImageClick = {
-                    if (imageDirectory == null) {
-                        directorySetupType = DirectorySetupType.Image
-                    } else {
-                        imagePicker.launch(
-                            PickVisualMediaRequest(
-                                ActivityResultContracts.PickVisualMedia.ImageOnly,
-                            ),
-                        )
-                    }
-                },
-                onCameraClick = {
-                    if (imageDirectory == null) {
-                        directorySetupType = DirectorySetupType.Image
-                    } else {
-                        runCatching {
-                            val (file, uri) =
-                                com.lomo.app.util.CameraCaptureUtils
-                                    .createTempCaptureUri(context)
-                            pendingCameraFile = file
-                            pendingCameraUri = uri
-                            cameraLauncher.launch(uri)
-                        }.onFailure { error ->
-                            runCatching { pendingCameraFile?.delete() }
-                            pendingCameraFile = null
-                            pendingCameraUri = null
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    error.message ?: context.getString(R.string.error_unknown),
-                                )
-                            }
-                        }
-                    }
-                },
-                availableTags = allTags,
-                // Recording Integration
-                // Recording Integration
-                isRecording = isRecording,
-                recordingDuration = recordingDuration,
-                recordingAmplitude = recordingAmplitude,
-                onStartRecording = {
-                    if (voiceDirectory == null) {
-                        directorySetupType = DirectorySetupType.Voice
-                    } else {
-                        recordingViewModel.startRecording()
-                    }
-                },
-                onCancelRecording = recordingViewModel::cancelRecording,
-                onStopRecording = {
-                    recordingViewModel.stopRecording { markdown ->
-                        val cur = inputText.text
-                        val newText = if (cur.isEmpty()) markdown else "$cur\n$markdown"
-                        inputText = TextFieldValue(newText, TextRange(newText.length))
-                    }
-                },
-                hints =
-                    if (showInputHints) {
-                        listOf(
-                            stringResource(R.string.input_hint_1),
-                            stringResource(R.string.input_hint_2),
-                            stringResource(R.string.input_hint_3),
-                            stringResource(R.string.input_hint_4),
-                        )
-                    } else {
-                        emptyList()
-                    },
-            )
-        }
+        )
 
         if (directorySetupType != null) {
             val type = directorySetupType!!
@@ -645,7 +534,7 @@ fun MainScreen(
                 dismissButton = {
                     TextButton(onClick = {
                         directorySetupType = null
-                        showInputSheet = false
+                        editorController.close()
                         onNavigateToSettings()
                     }) {
                         Text(stringResource(R.string.action_go_to_settings))

@@ -47,7 +47,11 @@ fun MemoInteractionHost(
             controller = editorController,
             imageDirectory = imageDirectory,
             onSaveImage = onSaveImage,
-            onSubmit = onUpdateMemo,
+            onSubmit = { memo, content ->
+                if (memo != null) {
+                    onUpdateMemo(memo, content)
+                }
+            },
             availableTags = availableTags,
         )
     }
