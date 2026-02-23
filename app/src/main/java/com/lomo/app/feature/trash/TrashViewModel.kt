@@ -14,9 +14,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -46,6 +49,16 @@ class TrashViewModel
             repository
                 .getDeletedMemosList()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+        init {
+            // Keep deletion flags only for rows that still exist in current trash list.
+            // This avoids alpha "bounce back" when DB removal arrives slightly later.
+            trashMemos
+                .onEach { memos ->
+                    val existingIds = memos.asSequence().map { it.id }.toSet()
+                    deletingMemoIds.update { current -> current.intersect(existingIds) }
+                }.launchIn(viewModelScope)
+        }
 
         private val defaultPreferences = AppPreferencesState.defaults()
 
@@ -97,32 +110,40 @@ class TrashViewModel
 
         fun restoreMemo(memo: Memo) {
             viewModelScope.launch {
-                deletingMemoIds.value = deletingMemoIds.value + memo.id
+                deletingMemoIds.update { it + memo.id }
                 kotlinx.coroutines.delay(300L)
+                var restored = false
                 try {
                     repository.restoreMemo(memo)
+                    restored = true
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     _errorMessage.value = "Failed to restore memo: ${e.message}"
                 } finally {
-                    deletingMemoIds.value = deletingMemoIds.value - memo.id
+                    if (!restored) {
+                        deletingMemoIds.update { it - memo.id }
+                    }
                 }
             }
         }
 
         fun deletePermanently(memo: Memo) {
             viewModelScope.launch {
-                deletingMemoIds.value = deletingMemoIds.value + memo.id
+                deletingMemoIds.update { it + memo.id }
                 kotlinx.coroutines.delay(300L)
+                var deleted = false
                 try {
                     repository.deletePermanently(memo)
+                    deleted = true
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     _errorMessage.value = "Failed to delete memo: ${e.message}"
                 } finally {
-                    deletingMemoIds.value = deletingMemoIds.value - memo.id
+                    if (!deleted) {
+                        deletingMemoIds.update { it - memo.id }
+                    }
                 }
             }
         }
