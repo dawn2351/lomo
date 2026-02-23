@@ -32,13 +32,13 @@ class MainViewModel
     constructor(
         private val repository: MemoRepository,
         private val settingsRepository: SettingsRepository,
-        private val mediaRepository: com.lomo.domain.repository.MediaRepository,
         private val savedStateHandle: SavedStateHandle,
         val mapper: MemoUiMapper,
         private val imageMapProvider: ImageMapProvider,
         private val getFilteredMemosUseCase: com.lomo.domain.usecase.GetFilteredMemosUseCase,
         private val memoMutator: MainMemoMutator,
         private val startupCoordinator: MainStartupCoordinator,
+        private val mediaCoordinator: MainMediaCoordinator,
     ) : ViewModel() {
         private val _updateUrl = MutableStateFlow<String?>(null)
         val updateUrl: StateFlow<String?> = _updateUrl
@@ -72,10 +72,6 @@ class MainViewModel
 
         private val _errorMessage = MutableStateFlow<String?>(null)
         val errorMessage: StateFlow<String?> = _errorMessage
-
-        // Bug 3: Track filenames of images added during the current edit session.
-        // If the user discards the input, we delete these files.
-        private val ephemeralImageFilenames = mutableSetOf<String>()
 
         val isSyncing: StateFlow<Boolean> =
             repository
@@ -149,12 +145,7 @@ class MainViewModel
             forVoice: Boolean,
         ) {
             viewModelScope.launch {
-                if (forImage) {
-                    mediaRepository.createDefaultImageDirectory()
-                }
-                if (forVoice) {
-                    mediaRepository.createDefaultVoiceDirectory()
-                }
+                mediaCoordinator.createDefaultDirectories(forImage, forVoice)
             }
         }
 
@@ -253,7 +244,7 @@ class MainViewModel
                     memoMutator.addMemo(content)
 
                     // Bug 3: Memo saved, keep the images
-                    ephemeralImageFilenames.clear()
+                    mediaCoordinator.clearTrackedImages()
 
                     // Force refresh to pull new item (Sync might have already done it via Flow)
                     // repository.refreshMemos() // Auto-triggered by file observer usually
@@ -290,7 +281,7 @@ class MainViewModel
                     memoMutator.updateMemo(memo, newContent)
 
                     // Bug 3: Memo saved, keep the images
-                    ephemeralImageFilenames.clear()
+                    mediaCoordinator.clearTrackedImages()
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -322,12 +313,7 @@ class MainViewModel
         ) {
             viewModelScope.launch {
                 try {
-                    val path = mediaRepository.saveImage(uri)
-                    // Track it for Bug 3 cleanup
-                    ephemeralImageFilenames.add(path)
-
-                    // Sync image cache immediately so new image is available for display
-                    mediaRepository.syncImageCache()
+                    val path = mediaCoordinator.saveImageAndTrack(uri)
                     onResult(path)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
@@ -339,19 +325,8 @@ class MainViewModel
         }
 
         fun discardInputs() {
-            // Bug 3: User abandoned input, delete session images
-            val toDelete = ephemeralImageFilenames.toList()
-            ephemeralImageFilenames.clear()
-
             viewModelScope.launch {
-                toDelete.forEach { filename ->
-                    try {
-                        mediaRepository.deleteImage(filename)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-                mediaRepository.syncImageCache()
+                mediaCoordinator.discardTrackedImages()
             }
         }
 
@@ -398,7 +373,7 @@ class MainViewModel
             imageDirectory
                 .onEach { path: String? ->
                     if (path != null) {
-                        mediaRepository.syncImageCache()
+                        mediaCoordinator.syncImageCacheBestEffort()
                     }
                 }.launchIn(viewModelScope)
 
@@ -416,11 +391,7 @@ class MainViewModel
 
         fun syncImageCacheNow() {
             viewModelScope.launch {
-                try {
-                    mediaRepository.syncImageCache()
-                } catch (_: Exception) {
-                    // Best effort refresh.
-                }
+                mediaCoordinator.syncImageCacheBestEffort()
             }
         }
 

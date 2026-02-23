@@ -151,7 +151,6 @@ class MainViewModelTest {
         MainViewModel(
             repository = repository,
             settingsRepository = settingsRepository,
-            mediaRepository = mediaRepository,
             savedStateHandle = savedStateHandle,
             mapper = mapper,
             imageMapProvider = imageMapProvider,
@@ -166,5 +165,6 @@ class MainViewModelTest {
                     audioPlayerManager = audioPlayerManager,
                     updateManager = updateManager,
                 ),
+            mediaCoordinator = MainMediaCoordinator(mediaRepository),
         )
 }
