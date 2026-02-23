@@ -37,9 +37,8 @@ class MainViewModel
         private val memoFlowProcessor: MemoFlowProcessor,
         private val imageMapProvider: ImageMapProvider,
         private val getFilteredMemosUseCase: com.lomo.domain.usecase.GetFilteredMemosUseCase,
-        private val memoMutator: MainMemoMutator,
+        private val memoActionDelegate: MainMemoActionDelegate,
         private val startupCoordinator: MainStartupCoordinator,
-        private val mediaCoordinator: MainMediaCoordinator,
     ) : ViewModel() {
         private val _errorMessage = MutableStateFlow<String?>(null)
         val errorMessage: StateFlow<String?> = _errorMessage
@@ -112,7 +111,11 @@ class MainViewModel
             forVoice: Boolean,
         ) {
             viewModelScope.launch {
-                mediaCoordinator.createDefaultDirectories(forImage, forVoice)
+                memoActionDelegate
+                    .createDefaultDirectories(forImage, forVoice)
+                    .onFailure { error ->
+                        _errorMessage.value = error.userMessage("Failed to create directories")
+                    }
             }
         }
 
@@ -187,19 +190,11 @@ class MainViewModel
                 return
             }
             viewModelScope.launch {
-                try {
-                    memoMutator.addMemo(content)
-
-                    // Bug 3: Memo saved, keep the images
-                    mediaCoordinator.clearTrackedImages()
-
-                    // Force refresh to pull new item (Sync might have already done it via Flow)
-                    // repository.refreshMemos() // Auto-triggered by file observer usually
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    _errorMessage.value = e.message
-                }
+                memoActionDelegate
+                    .addMemo(content)
+                    .onFailure { error ->
+                        _errorMessage.value = error.userMessage()
+                    }
             }
         }
 
@@ -207,15 +202,12 @@ class MainViewModel
             viewModelScope.launch {
                 deletingMemoIds.value = deletingMemoIds.value + memo.id
                 kotlinx.coroutines.delay(300L) // Wait for fade out animation
-                try {
-                    memoMutator.deleteMemo(memo)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    _errorMessage.value = e.message
-                } finally {
-                    deletingMemoIds.value = deletingMemoIds.value - memo.id
-                }
+                memoActionDelegate
+                    .deleteMemo(memo)
+                    .onFailure { error ->
+                        _errorMessage.value = error.userMessage()
+                    }
+                deletingMemoIds.value = deletingMemoIds.value - memo.id
             }
         }
 
@@ -224,16 +216,11 @@ class MainViewModel
             newContent: String,
         ) {
             viewModelScope.launch {
-                try {
-                    memoMutator.updateMemo(memo, newContent)
-
-                    // Bug 3: Memo saved, keep the images
-                    mediaCoordinator.clearTrackedImages()
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    _errorMessage.value = e.message
-                }
+                memoActionDelegate
+                    .updateMemo(memo, newContent)
+                    .onFailure { error ->
+                        _errorMessage.value = error.userMessage()
+                    }
             }
         }
 
@@ -243,13 +230,11 @@ class MainViewModel
             checked: Boolean,
         ) {
             viewModelScope.launch {
-                try {
-                    memoMutator.toggleCheckbox(memo, lineIndex, checked)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    _errorMessage.value = "Failed to update todo: ${e.message}"
-                }
+                memoActionDelegate
+                    .toggleCheckbox(memo, lineIndex, checked)
+                    .onFailure { error ->
+                        _errorMessage.value = error.userMessage("Failed to update todo")
+                    }
             }
         }
 
@@ -259,21 +244,23 @@ class MainViewModel
             onError: (() -> Unit)? = null,
         ) {
             viewModelScope.launch {
-                try {
-                    val path = mediaCoordinator.saveImageAndTrack(uri)
-                    onResult(path)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    _errorMessage.value = "Failed to save image: ${e.message}"
-                    onError?.invoke()
-                }
+                memoActionDelegate
+                    .saveImage(uri)
+                    .onSuccess(onResult)
+                    .onFailure { error ->
+                        _errorMessage.value = error.userMessage("Failed to save image")
+                        onError?.invoke()
+                    }
             }
         }
 
         fun discardInputs() {
             viewModelScope.launch {
-                mediaCoordinator.discardTrackedImages()
+                memoActionDelegate
+                    .discardInputs()
+                    .onFailure { error ->
+                        _errorMessage.value = error.userMessage("Failed to discard input")
+                    }
             }
         }
 
@@ -320,7 +307,7 @@ class MainViewModel
             imageDirectory
                 .onEach { path: String? ->
                     if (path != null) {
-                        mediaCoordinator.syncImageCacheBestEffort()
+                        memoActionDelegate.syncImageCacheBestEffort()
                     }
                 }.launchIn(viewModelScope)
 
@@ -335,7 +322,11 @@ class MainViewModel
 
         fun syncImageCacheNow() {
             viewModelScope.launch {
-                mediaCoordinator.syncImageCacheBestEffort()
+                memoActionDelegate
+                    .syncImageCacheBestEffort()
+                    .onFailure { error ->
+                        _errorMessage.value = error.userMessage("Failed to sync image cache")
+                    }
             }
         }
 
@@ -360,6 +351,14 @@ class MainViewModel
         fun clearError() {
             _errorMessage.value = null
         }
+
+        private fun Throwable.userMessage(prefix: String? = null): String =
+            when {
+                prefix.isNullOrBlank() && message.isNullOrBlank() -> "Unexpected error"
+                prefix.isNullOrBlank() -> message.orEmpty()
+                message.isNullOrBlank() -> prefix
+                else -> "$prefix: $message"
+            }
 
         companion object {
             private const val KEY_SEARCH_QUERY = "search_query"

@@ -155,7 +155,11 @@ class MainViewModelTest {
             memoFlowProcessor = memoFlowProcessor,
             imageMapProvider = imageMapProvider,
             getFilteredMemosUseCase = getFilteredMemosUseCase,
-            memoMutator = memoMutator,
+            memoActionDelegate =
+                MainMemoActionDelegate(
+                    memoMutator = memoMutator,
+                    mediaCoordinator = MainMediaCoordinator(mediaRepository, MemoImageWorkflow(mediaRepository)),
+                ),
             startupCoordinator =
                 MainStartupCoordinator(
                     repository = repository,
@@ -164,6 +168,5 @@ class MainViewModelTest {
                     dataStore = dataStore,
                     audioPlayerManager = audioPlayerManager,
                 ),
-            mediaCoordinator = MainMediaCoordinator(mediaRepository, MemoImageWorkflow(mediaRepository)),
         )
 }
