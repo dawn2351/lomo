@@ -25,7 +25,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.security.MessageDigest
-import java.util.Base64
 import java.util.UUID
 
 /**
@@ -37,16 +36,7 @@ class LomoShareServer {
         private const val APPROVAL_TIMEOUT_MS = 60_000L // 60 seconds to approve
         private const val SESSION_TTL_MS = 120_000L
         private const val MAX_PREPARE_BODY_CHARS = 64 * 1024
-        private const val MAX_SENDER_NAME_CHARS = 64
         private const val MAX_MEMO_CHARS = 200_000
-        private const val MAX_ENCRYPTED_MEMO_CHARS = 600_000
-        private const val MAX_ATTACHMENTS = 20
-        private const val MAX_ATTACHMENT_NAME_CHARS = 1024
-        private const val MAX_ATTACHMENT_SIZE_BYTES = 100L * 1024L * 1024L
-        private const val AUTH_NONCE_TTL_MS = 10 * 60 * 1000L
-        private const val MAX_AUTH_NONCE_CHARS = 64
-        private const val MAX_AUTH_NONCES_TRACKED = 5000
-        private const val MAX_NONCE_BASE64_CHARS = 64
     }
 
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -65,7 +55,8 @@ class LomoShareServer {
 
     private var pendingApproval: PendingApproval? = null
     private val approvedSessions = mutableMapOf<String, ApprovedSession>()
-    private val usedAuthNonces = mutableMapOf<String, Long>()
+    private val requestValidator = ShareRequestValidator()
+    private val authValidator = ShareAuthenticationValidator()
 
     // Callback to notify UI of incoming share request
     var onIncomingPrepare: ((SharePayload) -> Unit)? = null
@@ -124,12 +115,15 @@ class LomoShareServer {
                             if (!request.e2eEnabled) {
                                 Timber.tag(TAG).w("Received OPEN mode prepare request (unauthenticated)")
                             }
-                            val validationError = validatePrepareRequest(request)
+                            val validationError = requestValidator.validatePrepareRequest(request)
                             if (validationError != null) {
                                 call.respond(HttpStatusCode.BadRequest, validationError)
                                 return@post
                             }
-                            val authValidation = validatePrepareAuthentication(request)
+                            val authValidation =
+                                authValidator.validatePrepareAuthentication(request) {
+                                    getPairingKeyHex?.invoke()
+                                }
                             if (!authValidation.ok) {
                                 call.respond(authValidation.status, authValidation.message)
                                 return@post
@@ -269,8 +263,8 @@ class LomoShareServer {
             pendingApproval?.deferred?.complete(false)
             pendingApproval = null
             approvedSessions.clear()
-            usedAuthNonces.clear()
         }
+        authValidator.clearNonces()
         server?.stop(500, 1000)
         server = null
         Timber.tag(TAG).d("Server stopped")
@@ -292,8 +286,12 @@ class LomoShareServer {
         LomoShareTransferHandler(
             json = json,
             isE2eEnabled = { this@LomoShareServer.isE2eEnabled?.invoke() ?: true },
-            validateTransferMetadata = ::validateTransferMetadata,
-            validateTransferAuthentication = ::validateTransferAuthentication,
+            validateTransferMetadata = requestValidator::validateTransferMetadata,
+            validateTransferAuthentication = { metadata ->
+                authValidator.validateTransferAuthentication(metadata) {
+                    getPairingKeyHex?.invoke()
+                }
+            },
             consumeApprovedSession = ::consumeApprovedSession,
             buildRequestHash = ::buildRequestHash,
             onSaveAttachment = { onSaveAttachment },
@@ -320,297 +318,11 @@ class LomoShareServer {
             }
         }
 
-    private fun validatePrepareRequest(request: PrepareRequest): String? {
-        if (request.senderName.isBlank() || request.senderName.length > MAX_SENDER_NAME_CHARS) {
-            return "Invalid sender name"
-        }
-        if (request.encryptedContent.isBlank()) {
-            return "Memo content is empty"
-        }
-        if (request.e2eEnabled) {
-            if (request.encryptedContent.length > MAX_ENCRYPTED_MEMO_CHARS) {
-                return "Encrypted memo content too large"
-            }
-            if (!isValidContentNonce(request.contentNonce)) {
-                return "Invalid content nonce"
-            }
-            if (request.authTimestampMs <= 0L) {
-                return "Invalid auth timestamp"
-            }
-            if (!isValidAuthNonce(request.authNonce)) {
-                return "Invalid auth nonce"
-            }
-            if (!isValidSignatureHex(request.authSignature)) {
-                return "Invalid auth signature"
-            }
-        } else {
-            if (request.encryptedContent.length > MAX_MEMO_CHARS) {
-                return "Memo content too large"
-            }
-            if (request.contentNonce.isNotBlank()) {
-                return "Content nonce is not allowed in open mode"
-            }
-            if (request.authTimestampMs != 0L || request.authNonce.isNotBlank() || request.authSignature.isNotBlank()) {
-                return "Auth fields are not allowed in open mode"
-            }
-        }
-        if (request.attachments.size > MAX_ATTACHMENTS) {
-            return "Too many attachments"
-        }
-
-        val seenNames = mutableSetOf<String>()
-        for (attachment in request.attachments) {
-            val name = attachment.name.trim()
-            if (!isValidAttachmentReferenceName(name)) {
-                return "Invalid attachment name"
-            }
-            if (!seenNames.add(name)) {
-                return "Duplicate attachment name"
-            }
-            if (attachment.type !in setOf("image", "audio")) {
-                return "Unsupported attachment type"
-            }
-            if (attachment.size < 0) {
-                return "Invalid attachment size"
-            }
-            if (attachment.size > MAX_ATTACHMENT_SIZE_BYTES) {
-                return "Attachment too large"
-            }
-        }
-        return null
-    }
-
-    private fun validateTransferMetadata(metadata: TransferMetadata): String? {
-        if (metadata.sessionToken.isBlank()) {
-            return "Missing share session token"
-        }
-        if (metadata.encryptedContent.isBlank()) {
-            return "Memo content is empty"
-        }
-        if (metadata.e2eEnabled) {
-            if (metadata.encryptedContent.length > MAX_ENCRYPTED_MEMO_CHARS) {
-                return "Encrypted memo content too large"
-            }
-            if (!isValidContentNonce(metadata.contentNonce)) {
-                return "Invalid content nonce"
-            }
-            if (metadata.authTimestampMs <= 0L) {
-                return "Invalid auth timestamp"
-            }
-            if (!isValidAuthNonce(metadata.authNonce)) {
-                return "Invalid auth nonce"
-            }
-            if (!isValidSignatureHex(metadata.authSignature)) {
-                return "Invalid auth signature"
-            }
-        } else {
-            if (metadata.encryptedContent.length > MAX_MEMO_CHARS) {
-                return "Memo content too large"
-            }
-            if (metadata.contentNonce.isNotBlank()) {
-                return "Content nonce is not allowed in open mode"
-            }
-            if (metadata.authTimestampMs != 0L || metadata.authNonce.isNotBlank() || metadata.authSignature.isNotBlank()) {
-                return "Auth fields are not allowed in open mode"
-            }
-            if (metadata.attachmentNonces.isNotEmpty()) {
-                return "Attachment nonces are not allowed in open mode"
-            }
-        }
-        if (metadata.attachmentNames.size > MAX_ATTACHMENTS) {
-            return "Too many attachments"
-        }
-
-        val seenNames = mutableSetOf<String>()
-        val normalizedNames = metadata.attachmentNames.map { it.trim() }
-        for (name in normalizedNames) {
-            if (!isValidAttachmentReferenceName(name)) {
-                return "Invalid attachment name"
-            }
-            if (!seenNames.add(name)) {
-                return "Duplicate attachment name"
-            }
-        }
-        if (metadata.e2eEnabled) {
-            if (metadata.attachmentNonces.size > MAX_ATTACHMENTS) {
-                return "Too many attachment nonces"
-            }
-            val normalizedAttachmentNonces = mutableMapOf<String, String>()
-            for ((rawName, nonce) in metadata.attachmentNonces) {
-                val trimmedName = rawName.trim()
-                if (!isValidAttachmentReferenceName(trimmedName)) {
-                    return "Invalid attachment nonce name"
-                }
-                if (normalizedAttachmentNonces.put(trimmedName, nonce) != null) {
-                    return "Duplicate attachment nonce name"
-                }
-            }
-            if (normalizedAttachmentNonces.keys != seenNames) {
-                return "Attachment nonce mismatch"
-            }
-            for ((_, nonce) in normalizedAttachmentNonces) {
-                if (!isValidContentNonce(nonce)) {
-                    return "Invalid attachment nonce"
-                }
-            }
-        }
-        return null
-    }
-
-    private suspend fun validatePrepareAuthentication(request: PrepareRequest): ShareAuthValidation {
-        if (!request.e2eEnabled) {
-            return ShareAuthValidation(ok = true, keyHex = null)
-        }
-        val pairingKeyHex = getPairingKeyHex?.invoke()?.trim()
-        if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
-            return ShareAuthValidation(
-                ok = false,
-                status = HttpStatusCode.PreconditionFailed,
-                message = "LAN share pairing code is not configured on receiver",
-            )
-        }
-        val keyCandidates = ShareAuthUtils.resolveCandidateKeyHexes(pairingKeyHex)
-        if (keyCandidates.isEmpty()) {
-            return ShareAuthValidation(
-                ok = false,
-                status = HttpStatusCode.PreconditionFailed,
-                message = "LAN share pairing code is not configured on receiver",
-            )
-        }
-        if (!ShareAuthUtils.isTimestampWithinWindow(request.authTimestampMs)) {
-            return ShareAuthValidation(false, HttpStatusCode.Unauthorized, "Expired auth timestamp")
-        }
-        if (!registerNonce(request.authNonce)) {
-            return ShareAuthValidation(false, HttpStatusCode.Forbidden, "Replay detected")
-        }
-        val payload =
-            ShareAuthUtils.buildPreparePayloadToSign(
-                senderName = request.senderName,
-                encryptedContent = request.encryptedContent,
-                contentNonce = request.contentNonce,
-                timestamp = request.timestamp,
-                attachmentNames = request.attachments.map { it.name.trim() },
-                authTimestampMs = request.authTimestampMs,
-                authNonce = request.authNonce,
-            )
-        val verified =
-            keyCandidates.firstOrNull { candidate ->
-                ShareAuthUtils.verifySignature(
-                    keyHex = candidate,
-                    payload = payload,
-                    providedSignatureHex = request.authSignature,
-                )
-            }
-        return if (verified != null) {
-            ShareAuthValidation(true, keyHex = verified)
-        } else {
-            ShareAuthValidation(false, HttpStatusCode.Unauthorized, "Invalid auth signature")
-        }
-    }
-
-    private suspend fun validateTransferAuthentication(metadata: TransferMetadata): ShareAuthValidation {
-        if (!metadata.e2eEnabled) {
-            return ShareAuthValidation(ok = true, keyHex = null)
-        }
-        val pairingKeyHex = getPairingKeyHex?.invoke()?.trim()
-        if (!ShareAuthUtils.isValidKeyHex(pairingKeyHex)) {
-            return ShareAuthValidation(
-                ok = false,
-                status = HttpStatusCode.PreconditionFailed,
-                message = "LAN share pairing code is not configured on receiver",
-            )
-        }
-        val keyCandidates = ShareAuthUtils.resolveCandidateKeyHexes(pairingKeyHex)
-        if (keyCandidates.isEmpty()) {
-            return ShareAuthValidation(
-                ok = false,
-                status = HttpStatusCode.PreconditionFailed,
-                message = "LAN share pairing code is not configured on receiver",
-            )
-        }
-        if (!ShareAuthUtils.isTimestampWithinWindow(metadata.authTimestampMs)) {
-            return ShareAuthValidation(false, HttpStatusCode.Unauthorized, "Expired auth timestamp")
-        }
-        if (!registerNonce(metadata.authNonce)) {
-            return ShareAuthValidation(false, HttpStatusCode.Forbidden, "Replay detected")
-        }
-        val payload =
-            ShareAuthUtils.buildTransferPayloadToSign(
-                sessionToken = metadata.sessionToken,
-                encryptedContent = metadata.encryptedContent,
-                contentNonce = metadata.contentNonce,
-                timestamp = metadata.timestamp,
-                attachmentNames = metadata.attachmentNames.map { it.trim() },
-                authTimestampMs = metadata.authTimestampMs,
-                authNonce = metadata.authNonce,
-            )
-        val verified =
-            keyCandidates.firstOrNull { candidate ->
-                ShareAuthUtils.verifySignature(
-                    keyHex = candidate,
-                    payload = payload,
-                    providedSignatureHex = metadata.authSignature,
-                )
-            }
-        return if (verified != null) {
-            ShareAuthValidation(true, keyHex = verified)
-        } else {
-            ShareAuthValidation(false, HttpStatusCode.Unauthorized, "Invalid auth signature")
-        }
-    }
-
-    private fun isValidAttachmentReferenceName(name: String): Boolean {
-        if (name.isBlank() || name.length > MAX_ATTACHMENT_NAME_CHARS) return false
-        if (name.contains('\u0000')) return false
-        return true
-    }
-
     private fun cleanupExpiredSessionsLocked(nowMs: Long = System.currentTimeMillis()) {
         approvedSessions.entries.removeIf { (_, session) ->
             nowMs - session.createdAtMs > SESSION_TTL_MS
         }
     }
-
-    private fun cleanupExpiredAuthNoncesLocked(nowMs: Long = System.currentTimeMillis()) {
-        usedAuthNonces.entries.removeIf { (_, issuedAt) ->
-            nowMs - issuedAt > AUTH_NONCE_TTL_MS
-        }
-    }
-
-    private fun registerNonce(nonce: String): Boolean =
-        synchronized(stateLock) {
-            val now = System.currentTimeMillis()
-            cleanupExpiredAuthNoncesLocked(now)
-            if (usedAuthNonces.containsKey(nonce)) {
-                false
-            } else {
-                if (usedAuthNonces.size >= MAX_AUTH_NONCES_TRACKED) {
-                    val oldestKey =
-                        usedAuthNonces.minByOrNull { it.value }?.key
-                    if (oldestKey != null) {
-                        usedAuthNonces.remove(oldestKey)
-                    }
-                }
-                usedAuthNonces[nonce] = now
-                true
-            }
-        }
-
-    private fun isValidAuthNonce(nonce: String): Boolean {
-        if (nonce.isBlank() || nonce.length > MAX_AUTH_NONCE_CHARS) return false
-        return nonce.matches(Regex("^[0-9a-fA-F]+$"))
-    }
-
-    private fun isValidContentNonce(nonceBase64: String): Boolean {
-        if (nonceBase64.isBlank() || nonceBase64.length > MAX_NONCE_BASE64_CHARS) return false
-        return try {
-            Base64.getDecoder().decode(nonceBase64).size == 12
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun isValidSignatureHex(signature: String): Boolean = signature.matches(Regex("^[0-9a-fA-F]{64}$"))
 
     private fun buildRequestHash(
         content: String,
