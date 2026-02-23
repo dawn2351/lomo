@@ -2,11 +2,11 @@ package com.lomo.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.lomo.data.local.dao.FileSyncDao
 import com.lomo.data.local.dao.ImageCacheDao
+import com.lomo.data.local.dao.LocalFileStateDao
 import com.lomo.data.local.dao.MemoDao
-import com.lomo.data.local.entity.FileSyncEntity
 import com.lomo.data.local.entity.ImageCacheEntity
+import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.TrashMemoEntity
@@ -18,10 +18,9 @@ import com.lomo.data.local.entity.TrashMemoEntity
             TrashMemoEntity::class,
             ImageCacheEntity::class,
             MemoFtsEntity::class,
-            FileSyncEntity::class,
-            com.lomo.data.local.entity.FileCacheEntity::class,
+            LocalFileStateEntity::class,
         ],
-    version = 16,
+    version = 18,
     exportSchema = false,
 )
 abstract class MemoDatabase : RoomDatabase() {
@@ -29,7 +28,5 @@ abstract class MemoDatabase : RoomDatabase() {
 
     abstract fun imageCacheDao(): ImageCacheDao
 
-    abstract fun fileSyncDao(): FileSyncDao
-
-    abstract fun fileCacheDao(): com.lomo.data.local.dao.FileCacheDao
+    abstract fun localFileStateDao(): LocalFileStateDao
 }

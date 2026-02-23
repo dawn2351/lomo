@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.lomo.data.local.MemoDatabase
-import com.lomo.data.local.dao.FileSyncDao
+import com.lomo.data.local.dao.LocalFileStateDao
 import com.lomo.data.local.dao.MemoDao
 import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.repository.MemoRepositoryImpl
@@ -42,11 +42,7 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideFileSyncDao(database: MemoDatabase): FileSyncDao = database.fileSyncDao()
-
-    @Provides
-    @Singleton
-    fun provideFileCacheDao(database: MemoDatabase): com.lomo.data.local.dao.FileCacheDao = database.fileCacheDao()
+    fun provideLocalFileStateDao(database: MemoDatabase): LocalFileStateDao = database.localFileStateDao()
 
     @Provides
     @Singleton
@@ -72,20 +68,18 @@ object DataModule {
     fun provideMemoSynchronizer(
         dataSource: com.lomo.data.source.FileDataSource,
         dao: MemoDao,
-        fileSyncDao: FileSyncDao,
+        localFileStateDao: LocalFileStateDao,
         parser: MarkdownParser,
         processor: com.lomo.data.util.MemoTextProcessor,
         dataStore: com.lomo.data.local.datastore.LomoDataStore,
-        fileCacheDao: com.lomo.data.local.dao.FileCacheDao,
     ): com.lomo.data.repository.MemoSynchronizer =
         com.lomo.data.repository.MemoSynchronizer(
             dataSource,
             dao,
-            fileSyncDao,
+            localFileStateDao,
             parser,
             processor,
             dataStore,
-            fileCacheDao,
         )
 
     /**

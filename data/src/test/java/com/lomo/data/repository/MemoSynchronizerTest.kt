@@ -1,7 +1,8 @@
 package com.lomo.data.repository
 
+import com.lomo.data.local.dao.LocalFileStateDao
 import com.lomo.data.local.dao.MemoDao
-import com.lomo.data.local.entity.MemoEntity
+import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.source.FileContent
 import com.lomo.data.source.FileDataSource
@@ -24,11 +25,9 @@ class MemoSynchronizerTest {
 
     @MockK private lateinit var memoDao: MemoDao
 
-    @MockK private lateinit var fileSyncDao: com.lomo.data.local.dao.FileSyncDao
+    @MockK private lateinit var localFileStateDao: LocalFileStateDao
 
     @MockK private lateinit var dataStore: com.lomo.data.local.datastore.LomoDataStore
-
-    @MockK private lateinit var fileCacheDao: com.lomo.data.local.dao.FileCacheDao
 
     private lateinit var processor: MemoTextProcessor
     private lateinit var parser: MarkdownParser
@@ -50,11 +49,10 @@ class MemoSynchronizerTest {
             MemoSynchronizer(
                 fileDataSource,
                 memoDao,
-                fileSyncDao,
+                localFileStateDao,
                 parser,
                 processor,
                 dataStore,
-                fileCacheDao,
             )
     }
 
@@ -74,7 +72,7 @@ class MemoSynchronizerTest {
             coEvery { fileDataSource.listMetadataWithIds() } returns listOf(metadata)
             coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
             coEvery { fileDataSource.readFileByDocumentId("doc123") } returns fileContent
-            coEvery { fileSyncDao.getAllSyncMetadata() } returns emptyList()
+            coEvery { localFileStateDao.getAll() } returns emptyList()
 
             synchronizer.refresh()
 
@@ -87,7 +85,7 @@ class MemoSynchronizerTest {
         runTest {
             coEvery { fileDataSource.listMetadataWithIds() } returns emptyList()
             coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
-            coEvery { fileSyncDao.getAllSyncMetadata() } returns emptyList()
+            coEvery { localFileStateDao.getAll() } returns emptyList()
 
             // Should not crash
             synchronizer.refresh()
@@ -123,15 +121,14 @@ class MemoSynchronizerTest {
                     documentId = "doc123",
                 )
             val syncEntity =
-                com.lomo.data.local.entity.FileSyncEntity(
+                LocalFileStateEntity(
                     filename = "2024_01_15.md",
-                    lastModified = 1000L, // Same as metadata - file unchanged
-                    isTrash = false,
+                    lastKnownModifiedTime = 1000L, // Same as metadata - file unchanged
                 )
 
             coEvery { fileDataSource.listMetadataWithIds() } returns listOf(metadata)
             coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
-            coEvery { fileSyncDao.getAllSyncMetadata() } returns listOf(syncEntity)
+            coEvery { localFileStateDao.getAll() } returns listOf(syncEntity)
 
             synchronizer.refresh()
 

@@ -1,9 +1,9 @@
 package com.lomo.data.repository
 
 import android.net.Uri
-import com.lomo.data.local.dao.FileSyncDao
+import com.lomo.data.local.dao.LocalFileStateDao
 import com.lomo.data.local.dao.MemoDao
-import com.lomo.data.local.entity.FileSyncEntity
+import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.TrashMemoEntity
@@ -29,11 +29,10 @@ class MemoSynchronizer
     constructor(
         private val fileDataSource: FileDataSource,
         private val dao: MemoDao,
-        private val fileSyncDao: FileSyncDao,
+        private val localFileStateDao: LocalFileStateDao,
         private val parser: MarkdownParser,
         private val textProcessor: MemoTextProcessor,
         private val dataStore: com.lomo.data.local.datastore.LomoDataStore,
-        private val fileCacheDao: com.lomo.data.local.dao.FileCacheDao,
     ) {
         private val mutex = Mutex()
 
@@ -51,11 +50,12 @@ class MemoSynchronizer
                             val files = fileDataSource.listFiles(targetFilename)
                             if (files.isNotEmpty()) {
                                 syncFiles(files, isTrash = false)
-                                fileSyncDao.insertSyncMetadata(
-                                    FileSyncEntity(
-                                        targetFilename,
-                                        files[0].lastModified,
+                                localFileStateDao.upsert(
+                                    LocalFileStateEntity(
+                                        filename = targetFilename,
                                         isTrash = false,
+                                        lastKnownModifiedTime = files[0].lastModified,
+                                        safUri = localFileStateDao.getByFilename(targetFilename, false)?.safUri,
                                     ),
                                 )
                             }
@@ -64,45 +64,49 @@ class MemoSynchronizer
 
                         // Full Incremental Sync with optimized Document ID access
                         val syncMetadataMap =
-                            fileSyncDao.getAllSyncMetadata().associateBy {
-                                it.filename to it.isTrash
-                            }
+                            localFileStateDao.getAll().associateBy { it.filename to it.isTrash }
                         // Use optimized methods that return Document IDs
                         val mainFilesMetadata = fileDataSource.listMetadataWithIds()
                         val trashFilesMetadata = fileDataSource.listTrashMetadataWithIds()
 
-                        // Populate File Cache
-                        val cacheEntities =
-                            mainFilesMetadata.mapNotNull {
-                                it.uriString?.let { uri ->
-                                    com.lomo.data.local.entity.FileCacheEntity(
-                                        it.filename,
-                                        uri,
-                                        it.lastModified,
+                        // Refresh SAF URI cache for main files while preserving sync timestamps.
+                        val discoveredMainStates =
+                            mainFilesMetadata.mapNotNull { meta ->
+                                val key = meta.filename to false
+                                val existing = syncMetadataMap[key]
+                                val safUri = meta.uriString ?: existing?.safUri
+                                if (safUri == null && existing == null) {
+                                    null
+                                } else {
+                                    LocalFileStateEntity(
+                                        filename = meta.filename,
+                                        isTrash = false,
+                                        safUri = safUri,
+                                        lastKnownModifiedTime = existing?.lastKnownModifiedTime ?: 0L,
                                     )
                                 }
                             }
-                        if (cacheEntities.isNotEmpty()) {
-                            fileCacheDao.insertAll(cacheEntities)
+                        if (discoveredMainStates.isNotEmpty()) {
+                            localFileStateDao.upsertAll(discoveredMainStates)
                         }
 
                         val mainFilesToUpdate =
                             mainFilesMetadata.filter { meta ->
                                 val existing = syncMetadataMap[meta.filename to false]
-                                existing == null || existing.lastModified != meta.lastModified
+                                existing == null || existing.lastKnownModifiedTime != meta.lastModified
                             }
 
                         val trashFilesToUpdate =
                             trashFilesMetadata.filter { meta ->
                                 val existing = syncMetadataMap[meta.filename to true]
-                                existing == null || existing.lastModified != meta.lastModified
+                                existing == null || existing.lastKnownModifiedTime != meta.lastModified
                             }
 
                         // Parallel parsing with direct Document ID access (faster)
                         // Parallel parsing with batching to prevent OOM
                         val mainMemos = mutableListOf<MemoEntity>()
                         val trashMemos = mutableListOf<TrashMemoEntity>()
-                        val metadataToUpdate = mutableListOf<FileSyncEntity>()
+                        val metadataToUpdate = mutableListOf<LocalFileStateEntity>()
                         val mainDatesToReplace = mutableSetOf<String>()
                         val trashDatesToReplace = mutableSetOf<String>()
 
@@ -129,10 +133,11 @@ class MemoSynchronizer
                                 mainDatesToReplace.add(dateStr)
                                 mainMemos.addAll(memos)
                                 metadataToUpdate.add(
-                                    FileSyncEntity(
-                                        meta.filename,
-                                        meta.lastModified,
+                                    LocalFileStateEntity(
+                                        filename = meta.filename,
                                         isTrash = false,
+                                        safUri = meta.uriString,
+                                        lastKnownModifiedTime = meta.lastModified,
                                     ),
                                 )
                             }
@@ -194,22 +199,25 @@ class MemoSynchronizer
                                 trashDatesToReplace.add(dateStr)
                                 trashMemos.addAll(filteredMemos)
                                 metadataToUpdate.add(
-                                    FileSyncEntity(meta.filename, meta.lastModified, isTrash = true),
+                                    LocalFileStateEntity(
+                                        filename = meta.filename,
+                                        isTrash = true,
+                                        lastKnownModifiedTime = meta.lastModified,
+                                    ),
                                 )
                             }
                         }
 
                         // Identitfy deleted/missing files to remove from DB
-                        val currentMainFilenames = mainFilesMetadata.map { it.filename }.toSet()
-                        val currentTrashFilenames = trashFilesMetadata.map { it.filename }.toSet()
+                        val currentMainStateKeys = mainFilesMetadata.map { it.filename to false }.toSet()
+                        val currentTrashStateKeys = trashFilesMetadata.map { it.filename to true }.toSet()
 
                         val filesToDeleteInDb =
-                            syncMetadataMap.filter { (key, _) ->
-                                val (filename, isTrash) = key
-                                if (isTrash) {
-                                    filename !in currentTrashFilenames
+                            syncMetadataMap.filterKeys { key ->
+                                if (key.second) {
+                                    key !in currentTrashStateKeys
                                 } else {
-                                    filename !in currentMainFilenames
+                                    key !in currentMainStateKeys
                                 }
                             }
 
@@ -251,12 +259,12 @@ class MemoSynchronizer
                             }
 
                             if (metadataToUpdate.isNotEmpty()) {
-                                fileSyncDao.insertSyncMetadata(metadataToUpdate)
+                                localFileStateDao.upsertAll(metadataToUpdate)
                             }
 
                             // Handle file deletions
-                            filesToDeleteInDb.forEach { (key, _) ->
-                                val (filename, isTrash) = key
+                            filesToDeleteInDb.forEach { (stateKey, _) ->
+                                val (filename, isTrash) = stateKey
                                 // Find all memos that belong to this file/date and delete them
                                 val date = filename.removeSuffix(".md")
                                 if (isTrash) {
@@ -273,7 +281,7 @@ class MemoSynchronizer
                                         dao.deleteMemoFtsByIds(memoIds)
                                     }
                                 }
-                                fileSyncDao.deleteSyncMetadata(filename, isTrash)
+                                localFileStateDao.deleteByFilename(filename, isTrash)
                             }
                         }
                     } catch (e: Exception) {
@@ -380,16 +388,7 @@ class MemoSynchronizer
             val savedUriString = fileDataSource.saveFile(filename, fileContentToAppend, append = true)
             val metadata = fileDataSource.getFileMetadata(filename)
             if (metadata == null) throw java.io.IOException("Failed to read metadata after save")
-            fileSyncDao.insertSyncMetadata(FileSyncEntity(filename, metadata.lastModified, isTrash = false))
-            if (savedUriString != null) {
-                fileCacheDao.insert(
-                    com.lomo.data.local.entity.FileCacheEntity(
-                        filename,
-                        savedUriString,
-                        metadata.lastModified,
-                    ),
-                )
-            }
+            upsertMainState(filename, metadata.lastModified, savedUriString)
 
             // Then DB
             val entity = MemoEntity.fromDomain(newMemo)
@@ -433,7 +432,7 @@ class MemoSynchronizer
             val finalUpdatedMemo = updatedMemo.copy(rawContent = newRawContentFull)
 
             // File-first update (write file before DB)
-            val cachedUriString = fileCacheDao.getFileUri(filename)?.uriString
+            val cachedUriString = getMainSafUri(filename)
             val currentFileContent =
                 if (cachedUriString != null) {
                     fileDataSource.readFile(android.net.Uri.parse(cachedUriString))
@@ -459,18 +458,7 @@ class MemoSynchronizer
                     // Update Sync Metadata
                     val metadata = fileDataSource.getFileMetadata(filename)
                     if (metadata != null) {
-                        fileSyncDao.insertSyncMetadata(
-                            FileSyncEntity(filename, metadata.lastModified, isTrash = false),
-                        )
-                        if (savedUri != null) {
-                            fileCacheDao.insert(
-                                com.lomo.data.local.entity.FileCacheEntity(
-                                    filename,
-                                    savedUri,
-                                    metadata.lastModified,
-                                ),
-                            )
-                        }
+                        upsertMainState(filename, metadata.lastModified, savedUri)
                     }
 
                     // Then DB
@@ -489,7 +477,7 @@ class MemoSynchronizer
         private suspend fun deleteMemoInternal(memo: Memo) {
             // Move to Trash File FIRST (before DB update)
             val filename = memo.date + ".md"
-            val cachedUriString = fileCacheDao.getFileUri(filename)?.uriString
+            val cachedUriString = getMainSafUri(filename)
             val currentFileContent =
                 if (cachedUriString != null) {
                     fileDataSource.readFile(android.net.Uri.parse(cachedUriString))
@@ -518,26 +506,22 @@ class MemoSynchronizer
                         // Delete the empty date file from main folder
                         val uriToDelete = if (cachedUriString != null) Uri.parse(cachedUriString) else null
                         fileDataSource.deleteFile(filename, uriToDelete)
-                        fileSyncDao.deleteSyncMetadata(filename, isTrash = false)
+                        localFileStateDao.deleteByFilename(filename, false)
                     } else {
                         val uriToSave = if (cachedUriString != null) Uri.parse(cachedUriString) else null
-                        fileDataSource.saveFile(filename, lines.joinToString("\n"), false, uriToSave)
+                        val savedUri = fileDataSource.saveFile(filename, lines.joinToString("\n"), false, uriToSave)
 
                         // Update Sync Metadata for Main file
                         val metadata = fileDataSource.getFileMetadata(filename)
                         if (metadata != null) {
-                            fileSyncDao.insertSyncMetadata(
-                                FileSyncEntity(filename, metadata.lastModified, isTrash = false),
-                            )
+                            upsertMainState(filename, metadata.lastModified, savedUri)
                         }
                     }
 
                     // 3. Update Trash Metadata (The trash file was updated in saveTrashFile above)
                     val trashMetadata = fileDataSource.getTrashFileMetadata(filename)
                     if (trashMetadata != null) {
-                        fileSyncDao.insertSyncMetadata(
-                            FileSyncEntity(filename, trashMetadata.lastModified, isTrash = true),
-                        )
+                        upsertTrashState(filename, trashMetadata.lastModified)
                     }
 
                     // 4. Update DB after file operations succeed
@@ -569,7 +553,7 @@ class MemoSynchronizer
                         val remainingTrash = trashLines.joinToString("\n").trim()
                         if (remainingTrash.isEmpty()) {
                             fileDataSource.deleteTrashFile(filename)
-                            fileSyncDao.deleteSyncMetadata(filename, isTrash = true)
+                            localFileStateDao.deleteByFilename(filename, true)
                         } else {
                             fileDataSource.saveTrashFile(
                                 filename,
@@ -579,18 +563,14 @@ class MemoSynchronizer
                             // Update Trash Metadata after removal
                             val trashMetadata = fileDataSource.getTrashFileMetadata(filename)
                             if (trashMetadata != null) {
-                                fileSyncDao.insertSyncMetadata(
-                                    FileSyncEntity(filename, trashMetadata.lastModified, isTrash = true),
-                                )
+                                upsertTrashState(filename, trashMetadata.lastModified)
                             }
                         }
 
                         // 3. Update Main Metadata
                         val metadata = fileDataSource.getFileMetadata(filename)
                         if (metadata != null) {
-                            fileSyncDao.insertSyncMetadata(
-                                FileSyncEntity(filename, metadata.lastModified, isTrash = false),
-                            )
+                            upsertMainState(filename, metadata.lastModified)
                         }
 
                         // Update DB: Set isDeleted = false ONLY IF file operations were successful
@@ -624,7 +604,7 @@ class MemoSynchronizer
                     if (remainingContent.isEmpty()) {
                         // Delete the empty date file
                         fileDataSource.deleteTrashFile(filename)
-                        fileSyncDao.deleteSyncMetadata(filename, isTrash = true)
+                        localFileStateDao.deleteByFilename(filename, true)
                     } else {
                         fileDataSource.saveTrashFile(
                             filename,
@@ -658,6 +638,37 @@ class MemoSynchronizer
                     }
                 }
             }
+
+        private suspend fun getMainSafUri(filename: String): String? = localFileStateDao.getByFilename(filename, false)?.safUri
+
+        private suspend fun upsertMainState(
+            filename: String,
+            lastModified: Long,
+            safUri: String? = null,
+        ) {
+            val existing = localFileStateDao.getByFilename(filename, false)
+            localFileStateDao.upsert(
+                LocalFileStateEntity(
+                    filename = filename,
+                    isTrash = false,
+                    safUri = safUri ?: existing?.safUri,
+                    lastKnownModifiedTime = lastModified,
+                ),
+            )
+        }
+
+        private suspend fun upsertTrashState(
+            filename: String,
+            lastModified: Long,
+        ) {
+            localFileStateDao.upsert(
+                LocalFileStateEntity(
+                    filename = filename,
+                    isTrash = true,
+                    lastKnownModifiedTime = lastModified,
+                ),
+            )
+        }
 
         private fun isVoiceFile(filename: String): Boolean =
             filename.endsWith(".m4a", ignoreCase = true) ||
