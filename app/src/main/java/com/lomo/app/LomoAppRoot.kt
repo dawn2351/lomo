@@ -21,9 +21,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.lomo.app.feature.main.MainViewModel
+import com.lomo.app.feature.update.AppUpdateViewModel
 import com.lomo.app.navigation.LomoNavHost
 import com.lomo.data.share.ShareServiceManager
 
@@ -32,6 +34,7 @@ fun LomoAppRoot(
     viewModel: MainViewModel,
     shareServiceManager: ShareServiceManager,
     initialAction: String? = null,
+    appUpdateViewModel: AppUpdateViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(initialAction) {
         when (initialAction) {
@@ -45,22 +48,23 @@ fun LomoAppRoot(
         }
     }
 
-    val updateUrl by viewModel.updateUrl.collectAsStateWithLifecycle()
-    val updateVersion by viewModel.updateVersion.collectAsStateWithLifecycle()
-    val updateReleaseNotes by viewModel.updateReleaseNotes.collectAsStateWithLifecycle()
-    if (updateUrl != null) {
+    val updateDialogState by appUpdateViewModel.dialogState.collectAsStateWithLifecycle()
+    updateDialogState?.let { dialogState ->
         val context = LocalContext.current
         val haptic = com.lomo.ui.util.LocalAppHapticFeedback.current
+        val updateVersion = dialogState.version
+        val updateUrl = dialogState.url
+        val updateReleaseNotes = dialogState.releaseNotes
         val updateMessage =
-            if (updateVersion.isNullOrBlank()) {
+            if (updateVersion.isBlank()) {
                 stringResource(com.lomo.app.R.string.update_dialog_message)
             } else {
-                stringResource(com.lomo.app.R.string.update_dialog_message_with_version, updateVersion ?: "")
+                stringResource(com.lomo.app.R.string.update_dialog_message_with_version, updateVersion)
             }
-        val releaseNotes = updateReleaseNotes?.takeIf { it.isNotBlank() }
+        val releaseNotes = updateReleaseNotes.takeIf { it.isNotBlank() }
 
         AlertDialog(
-            onDismissRequest = { viewModel.dismissUpdateDialog() },
+            onDismissRequest = { appUpdateViewModel.dismissUpdateDialog() },
             title = {
                 Text(
                     stringResource(com.lomo.app.R.string.update_dialog_title),
@@ -93,11 +97,9 @@ fun LomoAppRoot(
                 TextButton(
                     onClick = {
                         haptic.medium()
-                        updateUrl?.let { url ->
-                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                            context.startActivity(intent)
-                        }
-                        viewModel.dismissUpdateDialog()
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(updateUrl))
+                        context.startActivity(intent)
+                        appUpdateViewModel.dismissUpdateDialog()
                     },
                 ) {
                     Text(
@@ -109,7 +111,7 @@ fun LomoAppRoot(
                 TextButton(
                     onClick = {
                         haptic.medium()
-                        viewModel.dismissUpdateDialog()
+                        appUpdateViewModel.dismissUpdateDialog()
                     },
                 ) {
                     Text(

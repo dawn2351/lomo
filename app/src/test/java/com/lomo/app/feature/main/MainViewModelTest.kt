@@ -35,7 +35,6 @@ class MainViewModelTest {
     private lateinit var getFilteredMemosUseCase: com.lomo.domain.usecase.GetFilteredMemosUseCase
     private lateinit var imageMapProvider: ImageMapProvider
     private lateinit var audioPlayerManager: com.lomo.ui.media.AudioPlayerManager
-    private lateinit var updateManager: com.lomo.app.feature.update.UpdateManager
 
     @Before
     fun setup() {
@@ -51,7 +50,6 @@ class MainViewModelTest {
         getFilteredMemosUseCase = mockk(relaxed = true)
         imageMapProvider = mockk(relaxed = true)
         audioPlayerManager = mockk(relaxed = true)
-        updateManager = mockk(relaxed = true)
 
         every { imageMapProvider.imageMap } returns MutableStateFlow(emptyMap())
         every { repository.isSyncing() } returns flowOf(false)
@@ -165,7 +163,6 @@ class MainViewModelTest {
                     settingsRepository = settingsRepository,
                     dataStore = dataStore,
                     audioPlayerManager = audioPlayerManager,
-                    updateManager = updateManager,
                 ),
             mediaCoordinator = MainMediaCoordinator(mediaRepository, MemoImageWorkflow(mediaRepository)),
         )

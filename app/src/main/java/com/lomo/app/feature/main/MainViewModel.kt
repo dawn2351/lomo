@@ -41,36 +41,6 @@ class MainViewModel
         private val startupCoordinator: MainStartupCoordinator,
         private val mediaCoordinator: MainMediaCoordinator,
     ) : ViewModel() {
-        private val _updateUrl = MutableStateFlow<String?>(null)
-        val updateUrl: StateFlow<String?> = _updateUrl
-        private val _updateVersion = MutableStateFlow<String?>(null)
-        val updateVersion: StateFlow<String?> = _updateVersion
-        private val _updateReleaseNotes = MutableStateFlow<String?>(null)
-        val updateReleaseNotes: StateFlow<String?> = _updateReleaseNotes
-
-        fun checkForUpdates() {
-            viewModelScope.launch {
-                try {
-                    val info = startupCoordinator.checkForUpdatesIfEnabled()
-                    if (info != null) {
-                        _updateUrl.value = info.url
-                        _updateVersion.value = info.version
-                        _updateReleaseNotes.value = info.releaseNotes
-                    }
-                } catch (_: Exception) {
-                    // Ignore update check errors
-                }
-            }
-        }
-
-        fun dismissUpdateDialog() {
-            _updateUrl.value = null
-            _updateVersion.value = null
-            _updateReleaseNotes.value = null
-        }
-
-        // ... existing code ...
-
         private val _errorMessage = MutableStateFlow<String?>(null)
         val errorMessage: StateFlow<String?> = _errorMessage
 
@@ -361,9 +331,6 @@ class MainViewModel
                         refresh()
                     }
                 }.launchIn(viewModelScope)
-
-            // Check for updates on startup, independent of root directory
-            checkForUpdates()
         }
 
         fun syncImageCacheNow() {
