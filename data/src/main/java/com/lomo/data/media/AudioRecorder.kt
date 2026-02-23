@@ -18,10 +18,11 @@ class AudioRecorder
         private var recorder: MediaRecorder? = null
         private var isRecording = false
 
-        override fun start(outputUri: android.net.Uri) {
+        override fun start(outputUri: String) {
             if (isRecording) {
                 stop()
             }
+            val targetUri = android.net.Uri.parse(outputUri)
 
             createRecorder().apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -30,8 +31,8 @@ class AudioRecorder
 
                 try {
                     val pfd =
-                        context.contentResolver.openFileDescriptor(outputUri, "w")
-                            ?: throw java.io.IOException("Cannot open file descriptor for $outputUri")
+                        context.contentResolver.openFileDescriptor(targetUri, "w")
+                            ?: throw java.io.IOException("Cannot open file descriptor for $targetUri")
                     setOutputFile(pfd.fileDescriptor)
 
                     prepare()

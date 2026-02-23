@@ -1,6 +1,5 @@
 package com.lomo.domain.repository
 
-import android.net.Uri
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -9,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
  */
 interface MediaRepository {
     // Images
-    suspend fun saveImage(uri: Uri): String
+    suspend fun saveImage(sourceUri: String): String
 
     suspend fun deleteImage(filename: String)
 
@@ -20,7 +19,7 @@ interface MediaRepository {
     suspend fun createDefaultImageDirectory(): String?
 
     // Voice
-    suspend fun createVoiceFile(filename: String): Uri
+    suspend fun createVoiceFile(filename: String): String
 
     suspend fun deleteVoiceFile(filename: String)
 

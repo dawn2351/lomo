@@ -1,9 +1,7 @@
 package com.lomo.domain.repository
 
-import android.net.Uri
-
 interface VoiceRecorder {
-    fun start(outputUri: Uri)
+    fun start(outputUri: String)
 
     fun stop()
 

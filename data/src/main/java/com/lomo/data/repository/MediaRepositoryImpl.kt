@@ -16,7 +16,7 @@ class MediaRepositoryImpl
     ) : MediaRepository {
         private val imageUriMap = MutableStateFlow<Map<String, String>>(emptyMap())
 
-        override suspend fun saveImage(uri: Uri): String = dataSource.saveImage(uri)
+        override suspend fun saveImage(sourceUri: String): String = dataSource.saveImage(Uri.parse(sourceUri))
 
         override suspend fun deleteImage(filename: String) {
             dataSource.deleteImage(filename)
@@ -42,7 +42,7 @@ class MediaRepositoryImpl
                 null
             }
 
-        override suspend fun createVoiceFile(filename: String): Uri = dataSource.createVoiceFile(filename)
+        override suspend fun createVoiceFile(filename: String): String = dataSource.createVoiceFile(filename).toString()
 
         override suspend fun deleteVoiceFile(filename: String) {
             dataSource.deleteVoiceFile(filename)

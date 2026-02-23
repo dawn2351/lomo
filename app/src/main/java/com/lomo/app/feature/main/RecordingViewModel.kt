@@ -52,7 +52,7 @@ class RecordingViewModel
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
         private var recordingJob: kotlinx.coroutines.Job? = null
-        private var currentRecordingUri: android.net.Uri? = null
+        private var currentRecordingTarget: String? = null
         private var currentRecordingFilename: String? = null
 
         fun startRecording() {
@@ -62,13 +62,13 @@ class RecordingViewModel
                     val filename = "voice_$timestamp.m4a"
 
                     // 1. Create file via repository (handles Voice Backend logic)
-                    val uri = mediaRepository.createVoiceFile(filename)
+                    val target = mediaRepository.createVoiceFile(filename)
 
-                    currentRecordingUri = uri
+                    currentRecordingTarget = target
                     currentRecordingFilename = filename
 
                     // 2. Start recording to the file URI
-                    voiceRecorder.start(uri)
+                    voiceRecorder.start(target)
                     _isRecording.value = true
                     _recordingDuration.value = 0
 
@@ -105,10 +105,10 @@ class RecordingViewModel
                 _recordingDuration.value = 0
                 _recordingAmplitude.value = 0
 
-                val uri = currentRecordingUri
+                val target = currentRecordingTarget
                 val filename = currentRecordingFilename
 
-                if (uri != null && filename != null) {
+                if (target != null && filename != null) {
                     // Use just the filename - voice directory is resolved by AudioPlayerManager
                     val markdown = "![voice]($filename)"
                     onResult(markdown)
@@ -118,7 +118,7 @@ class RecordingViewModel
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to stop recording: ${e.message}"
             }
-            currentRecordingUri = null
+            currentRecordingTarget = null
             currentRecordingFilename = null
         }
 
@@ -140,11 +140,11 @@ class RecordingViewModel
                         }
                     }
                 }
-                currentRecordingUri = null
+                currentRecordingTarget = null
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            currentRecordingUri = null
+            currentRecordingTarget = null
             currentRecordingFilename = null
         }
 

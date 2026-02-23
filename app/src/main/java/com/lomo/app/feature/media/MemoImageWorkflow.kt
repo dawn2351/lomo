@@ -10,7 +10,7 @@ class MemoImageWorkflow
         private val mediaRepository: MediaRepository,
     ) {
         suspend fun saveImageAndSync(uri: Uri): String {
-            val path = mediaRepository.saveImage(uri)
+            val path = mediaRepository.saveImage(uri.toString())
             mediaRepository.syncImageCache()
             return path
         }
