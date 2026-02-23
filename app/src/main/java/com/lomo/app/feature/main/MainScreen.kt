@@ -112,14 +112,14 @@ fun MainScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedTag by viewModel.selectedTag.collectAsStateWithLifecycle()
     val sidebarUiState by sidebarViewModel.sidebarUiState.collectAsStateWithLifecycle()
-
-    val dateFormat by viewModel.dateFormat.collectAsStateWithLifecycle()
-    val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
-    val hapticEnabled by viewModel.hapticFeedbackEnabled.collectAsStateWithLifecycle()
-    val showInputHints by viewModel.showInputHints.collectAsStateWithLifecycle()
-    val doubleTapEditEnabled by viewModel.doubleTapEditEnabled.collectAsStateWithLifecycle()
-    val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
-    val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
+    val appPreferences by viewModel.appPreferences.collectAsStateWithLifecycle()
+    val dateFormat = appPreferences.dateFormat
+    val timeFormat = appPreferences.timeFormat
+    val hapticEnabled = appPreferences.hapticFeedbackEnabled
+    val showInputHints = appPreferences.showInputHints
+    val doubleTapEditEnabled = appPreferences.doubleTapEditEnabled
+    val shareCardStyle = appPreferences.shareCardStyle
+    val shareCardShowTime = appPreferences.shareCardShowTime
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
 
     // Recording State (from RecordingViewModel)

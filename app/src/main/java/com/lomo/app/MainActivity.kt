@@ -71,8 +71,8 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
 
         setContent {
-            val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-            LomoTheme(themeMode = themeMode) {
+            val appPreferences by viewModel.appPreferences.collectAsStateWithLifecycle()
+            LomoTheme(themeMode = appPreferences.themeMode) {
                 ProvideHapticFeedback(dataStore) { hapticEnabled ->
                     com.lomo.ui.util.ProvideAppHapticFeedback(enabled = hapticEnabled) {
                         androidx.compose.runtime.CompositionLocalProvider(

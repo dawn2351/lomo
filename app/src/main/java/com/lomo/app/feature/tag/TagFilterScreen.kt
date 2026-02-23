@@ -58,11 +58,12 @@ fun TagFilterScreen(
     viewModel: TagFilterViewModel = hiltViewModel(),
 ) {
     val memos by viewModel.uiMemos.collectAsStateWithLifecycle()
-    val dateFormat by viewModel.dateFormat.collectAsStateWithLifecycle()
-    val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
-    val shareCardStyle by viewModel.shareCardStyle.collectAsStateWithLifecycle()
-    val shareCardShowTime by viewModel.shareCardShowTime.collectAsStateWithLifecycle()
-    val doubleTapEditEnabled by viewModel.doubleTapEditEnabled.collectAsStateWithLifecycle()
+    val appPreferences by viewModel.appPreferences.collectAsStateWithLifecycle()
+    val dateFormat = appPreferences.dateFormat
+    val timeFormat = appPreferences.timeFormat
+    val shareCardStyle = appPreferences.shareCardStyle
+    val shareCardShowTime = appPreferences.shareCardShowTime
+    val doubleTapEditEnabled = appPreferences.doubleTapEditEnabled
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val imageDirectory by viewModel.imageDir.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()

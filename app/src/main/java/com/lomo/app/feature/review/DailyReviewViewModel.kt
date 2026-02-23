@@ -17,7 +17,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -41,40 +40,10 @@ class DailyReviewViewModel
 
         private val defaultPreferences = AppPreferencesState.defaults()
 
-        private val appPreferences: StateFlow<AppPreferencesState> =
+        val appPreferences: StateFlow<AppPreferencesState> =
             settingsRepository
                 .observeAppPreferences()
                 .stateInViewModel(viewModelScope, defaultPreferences)
-
-        val dateFormat: StateFlow<String> =
-            appPreferences
-                .map { it.dateFormat }
-                .stateInViewModel(viewModelScope, defaultPreferences.dateFormat)
-
-        val timeFormat: StateFlow<String> =
-            appPreferences
-                .map { it.timeFormat }
-                .stateInViewModel(viewModelScope, defaultPreferences.timeFormat)
-
-        val shareCardStyle: StateFlow<String> =
-            appPreferences
-                .map { it.shareCardStyle }
-                .stateInViewModel(viewModelScope, defaultPreferences.shareCardStyle)
-
-        val shareCardShowTime: StateFlow<Boolean> =
-            appPreferences
-                .map { it.shareCardShowTime }
-                .stateInViewModel(viewModelScope, defaultPreferences.shareCardShowTime)
-
-        val shareCardShowBrand: StateFlow<Boolean> =
-            appPreferences
-                .map { it.shareCardShowBrand }
-                .stateInViewModel(viewModelScope, defaultPreferences.shareCardShowBrand)
-
-        val doubleTapEditEnabled: StateFlow<Boolean> =
-            appPreferences
-                .map { it.doubleTapEditEnabled }
-                .stateInViewModel(viewModelScope, defaultPreferences.doubleTapEditEnabled)
 
         val activeDayCount: StateFlow<Int> =
             repository

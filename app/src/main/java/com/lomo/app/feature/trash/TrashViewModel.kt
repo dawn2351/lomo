@@ -49,20 +49,10 @@ class TrashViewModel
 
         private val defaultPreferences = AppPreferencesState.defaults()
 
-        private val appPreferences: StateFlow<AppPreferencesState> =
+        val appPreferences: StateFlow<AppPreferencesState> =
             settingsRepository
                 .observeAppPreferences()
                 .stateInViewModel(viewModelScope, defaultPreferences)
-
-        val dateFormat: StateFlow<String> =
-            appPreferences
-                .map { it.dateFormat }
-                .stateInViewModel(viewModelScope, defaultPreferences.dateFormat)
-
-        val timeFormat: StateFlow<String> =
-            appPreferences
-                .map { it.timeFormat }
-                .stateInViewModel(viewModelScope, defaultPreferences.timeFormat)
 
         val rootDirectory: StateFlow<String?> =
             repository

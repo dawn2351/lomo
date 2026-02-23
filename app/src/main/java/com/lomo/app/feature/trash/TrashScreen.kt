@@ -50,8 +50,9 @@ fun TrashScreen(
     viewModel: TrashViewModel = hiltViewModel(),
 ) {
     val trashMemos by viewModel.trashUiMemos.collectAsStateWithLifecycle()
-    val dateFormat by viewModel.dateFormat.collectAsStateWithLifecycle()
-    val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
+    val appPreferences by viewModel.appPreferences.collectAsStateWithLifecycle()
+    val dateFormat = appPreferences.dateFormat
+    val timeFormat = appPreferences.timeFormat
 
     var selectedMemo by remember { mutableStateOf<Memo?>(null) }
     val haptic = com.lomo.ui.util.LocalAppHapticFeedback.current

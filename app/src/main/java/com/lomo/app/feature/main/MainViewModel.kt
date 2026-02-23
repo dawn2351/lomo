@@ -469,20 +469,10 @@ class MainViewModel
 
         private val defaultPreferences = AppPreferencesState.defaults()
 
-        private val appPreferences: StateFlow<AppPreferencesState> =
+        val appPreferences: StateFlow<AppPreferencesState> =
             settingsRepository
                 .observeAppPreferences()
                 .stateInViewModel(viewModelScope, defaultPreferences)
-
-        val dateFormat: StateFlow<String> =
-            appPreferences
-                .map { it.dateFormat }
-                .stateInViewModel(viewModelScope, defaultPreferences.dateFormat)
-
-        val timeFormat: StateFlow<String> =
-            appPreferences
-                .map { it.timeFormat }
-                .stateInViewModel(viewModelScope, defaultPreferences.timeFormat)
 
         val activeDayCount: StateFlow<Int> =
             repository
@@ -494,41 +484,6 @@ class MainViewModel
                             .WhileSubscribed(5000),
                     initialValue = 0,
                 )
-
-        val hapticFeedbackEnabled: StateFlow<Boolean> =
-            appPreferences
-                .map { it.hapticFeedbackEnabled }
-                .stateInViewModel(viewModelScope, defaultPreferences.hapticFeedbackEnabled)
-
-        val showInputHints: StateFlow<Boolean> =
-            appPreferences
-                .map { it.showInputHints }
-                .stateInViewModel(viewModelScope, defaultPreferences.showInputHints)
-
-        val doubleTapEditEnabled: StateFlow<Boolean> =
-            appPreferences
-                .map { it.doubleTapEditEnabled }
-                .stateInViewModel(viewModelScope, defaultPreferences.doubleTapEditEnabled)
-
-        val shareCardStyle: StateFlow<String> =
-            appPreferences
-                .map { it.shareCardStyle }
-                .stateInViewModel(viewModelScope, defaultPreferences.shareCardStyle)
-
-        val shareCardShowTime: StateFlow<Boolean> =
-            appPreferences
-                .map { it.shareCardShowTime }
-                .stateInViewModel(viewModelScope, defaultPreferences.shareCardShowTime)
-
-        val shareCardShowBrand: StateFlow<Boolean> =
-            appPreferences
-                .map { it.shareCardShowBrand }
-                .stateInViewModel(viewModelScope, defaultPreferences.shareCardShowBrand)
-
-        val themeMode: StateFlow<String> =
-            appPreferences
-                .map { it.themeMode }
-                .stateInViewModel(viewModelScope, defaultPreferences.themeMode)
 
         fun clearError() {
             _errorMessage.value = null
