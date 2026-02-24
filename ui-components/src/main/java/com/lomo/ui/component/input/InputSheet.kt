@@ -76,6 +76,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.lomo.ui.text.scriptAwareFor
 import com.lomo.ui.theme.MotionTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -440,6 +441,12 @@ fun InputSheet(
                                         .fillMaxWidth()
                                         .padding(20.dp),
                             ) {
+                                val bodyLargeStyle = MaterialTheme.typography.bodyLarge
+                                val inputTextStyle =
+                                    remember(inputValue.text, bodyLargeStyle) {
+                                        bodyLargeStyle.scriptAwareFor(inputValue.text)
+                                    }
+
                                 // Text input - taller default height
                                 TextField(
                                     value = inputValue,
@@ -463,7 +470,7 @@ fun InputSheet(
                                             disabledIndicatorColor = Color.Transparent,
                                         ),
                                     shape = RoundedCornerShape(16.dp),
-                                    textStyle = MaterialTheme.typography.bodyLarge,
+                                    textStyle = inputTextStyle,
                                     keyboardOptions =
                                         KeyboardOptions(
                                             imeAction = ImeAction.Default,
@@ -495,7 +502,7 @@ fun InputSheet(
                                             ) { targetHint ->
                                                 Text(
                                                     text = targetHint,
-                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    style = MaterialTheme.typography.bodyLarge.scriptAwareFor(targetHint),
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                                 )
                                             }

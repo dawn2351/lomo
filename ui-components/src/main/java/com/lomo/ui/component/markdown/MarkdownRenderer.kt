@@ -55,6 +55,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.lomo.ui.text.scriptAwareFor
+import com.lomo.ui.text.scriptAwareTextAlign
 import coil3.compose.AsyncImagePainter
 import coil3.compose.SubcomposeAsyncImage
 import coil3.decode.DataSource
@@ -109,7 +111,7 @@ fun MarkdownRenderer(
 
     LaunchedEffect(totalBlocks) { onTotalBlocks?.invoke(totalBlocks) }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         var node = root.node.firstChild
         var childIndex = 0
         while (node != null && childIndex < maxVisibleBlocks) {
@@ -237,7 +239,7 @@ private fun MDParagraph(
 
     if (items.isEmpty()) return
 
-    Column(modifier = modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
         items.forEach { item ->
             when (item) {
                 is AnnotatedString -> {
@@ -263,12 +265,15 @@ private fun MDText(
     style: TextStyle?,
 ) {
     if (text.isNotEmpty()) {
-        val finalStyle =
-            (style ?: MaterialTheme.typography.bodyMedium).copy(
-                color = style?.color ?: MaterialTheme.colorScheme.onSurface,
-            )
+        val baseStyle = style ?: MaterialTheme.typography.bodyMedium
+        val finalStyle = baseStyle.copy(color = style?.color ?: MaterialTheme.colorScheme.onSurface).scriptAwareFor(text)
 
-        Text(text = text, style = finalStyle, modifier = Modifier.fillMaxWidth())
+        Text(
+            text = text,
+            style = finalStyle,
+            textAlign = text.scriptAwareTextAlign(),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -328,7 +333,7 @@ private fun MDBlockQuote(
                     ).height(IntrinsicSize.Min),
         )
 
-        Column(modifier = Modifier.padding(start = 8.dp)) {
+        Column(modifier = Modifier.padding(start = 8.dp).fillMaxWidth()) {
             var child = quote.firstChild
             while (child != null) {
                 MDBlock(
@@ -350,7 +355,7 @@ private fun MDBulletList(
     todoOverrides: Map<Int, Boolean> = emptyMap(),
 ) {
     val list = bulletListNode.node as BulletList
-    Column(modifier = modifier.padding(start = 8.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(start = 8.dp)) {
         var node = list.firstChild
         while (node != null) {
             if (node is ListItem) {
@@ -374,7 +379,7 @@ private fun MDOrderedList(
     todoOverrides: Map<Int, Boolean> = emptyMap(),
 ) {
     val list = orderedListNode.node as OrderedList
-    Column(modifier = modifier.padding(start = 8.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(start = 8.dp)) {
         var node = list.firstChild
 
         @Suppress("DEPRECATION")
@@ -426,7 +431,7 @@ private fun MDListItem(
             MaterialTheme.typography.bodyMedium
         }
 
-    Row(modifier = modifier.padding(vertical = 2.dp)) {
+    Row(modifier = modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         if (isTask) {
             val appHaptic = com.lomo.ui.util.LocalAppHapticFeedback.current
 
@@ -484,7 +489,7 @@ private fun MDListItem(
             }
         }
 
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             var node = listItem.firstChild
             while (node != null) {
                 if (node is TaskListItemMarker) {

@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-
+repo_root="$(git rev-parse --show-toplevel)"
+gradlew="$repo_root/gradlew"
 
 staged_kotlin_files=()
 while IFS= read -r -d '' file; do
   staged_kotlin_files+=("$file")
-done < <(git diff --cached --name-only --diff-filter=ACMR -z -- '*.kt' '*.kts')
+done < <(git -C "$repo_root" diff --cached --name-only --diff-filter=ACMR -z -- '*.kt' '*.kts')
 
 if [ ${#staged_kotlin_files[@]} -eq 0 ]; then
   exit 0
 fi
 
-echo "pre-commit: running ./gradlew ktlintFormat on staged Kotlin files..."
-./gradlew ktlintFormat -Pktlint.filter="${staged_kotlin_files[*]}"
+if [ ! -x "$gradlew" ]; then
+  echo "pre-commit: gradle wrapper not found or not executable: $gradlew" >&2
+  exit 1
+fi
+
+echo "pre-commit: running $gradlew ktlintFormat on staged Kotlin files..."
+"$gradlew" --project-dir "$repo_root" --no-daemon \
+  ktlintFormat -Pktlint.filter="${staged_kotlin_files[*]}"
 
 # Re-stage files that were modified by formatter.
-git add -- "${staged_kotlin_files[@]}"
-
+git -C "$repo_root" add -- "${staged_kotlin_files[@]}"
