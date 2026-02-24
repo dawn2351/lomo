@@ -41,6 +41,7 @@ import com.lomo.app.feature.memo.MemoCardList
 import com.lomo.app.feature.memo.MemoCardListAnimation
 import com.lomo.app.feature.memo.MemoInteractionHost
 import com.lomo.ui.component.common.EmptyState
+import com.lomo.ui.theme.AppSpacing
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -146,6 +147,11 @@ fun SearchScreen(
                             }
                         }
                     },
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        ),
                     scrollBehavior = scrollBehavior,
                 )
             },
@@ -190,7 +196,13 @@ fun SearchScreen(
                             onMemoEdit = openEditor,
                             onShowMenu = showMenu,
                             animation = MemoCardListAnimation.FadeIn,
-                            contentPadding = PaddingValues(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
+                            contentPadding =
+                                PaddingValues(
+                                    top = AppSpacing.Medium,
+                                    start = AppSpacing.Medium,
+                                    end = AppSpacing.Medium,
+                                    bottom = AppSpacing.Medium,
+                                ),
                         )
                     }
                 }

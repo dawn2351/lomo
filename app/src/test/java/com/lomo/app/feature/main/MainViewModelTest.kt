@@ -58,6 +58,9 @@ class MainViewModelTest {
         every { repository.getAllMemosList() } returns flowOf(emptyList<Memo>())
         every { repository.searchMemosList(any()) } returns flowOf(emptyList<Memo>())
         every { repository.getMemosByTagList(any()) } returns flowOf(emptyList<Memo>())
+        every { repository.getMemoCountFlow() } returns flowOf(0)
+        every { repository.getMemoTimestampsFlow() } returns flowOf(emptyList())
+        every { repository.getTagCountsFlow() } returns flowOf(emptyList<com.lomo.domain.repository.MemoTagCount>())
         every { repository.getActiveDayCount() } returns flowOf(0)
         every { settingsRepository.getRootDirectory() } returns flowOf<String?>(null)
         coEvery { settingsRepository.getRootDirectoryOnce() } returns null

@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -38,6 +40,7 @@ import coil3.compose.AsyncImage
 import com.lomo.app.R
 import com.lomo.app.feature.main.MainViewModel
 import com.lomo.ui.component.common.EmptyState
+import com.lomo.ui.theme.AppSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +54,7 @@ fun GalleryScreen(
     }
 
     val imageMap by viewModel.imageMap.collectAsStateWithLifecycle()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val images =
         remember(imageMap) {
             imageMap.entries
@@ -59,6 +63,7 @@ fun GalleryScreen(
         }
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.gallery_title)) },
@@ -70,6 +75,12 @@ fun GalleryScreen(
                         )
                     }
                 },
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
+                scrollBehavior = scrollBehavior,
             )
         },
     ) { padding ->
@@ -93,9 +104,9 @@ fun GalleryScreen(
                     Modifier
                         .fillMaxSize()
                         .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(AppSpacing.Medium),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.MediumSmall),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.MediumSmall),
             ) {
                 items(
                     items = images,

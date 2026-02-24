@@ -35,6 +35,12 @@ interface MemoRepository {
 
     fun getMemosByTagList(tag: String): Flow<List<Memo>>
 
+    fun getMemoCountFlow(): Flow<Int>
+
+    fun getMemoTimestampsFlow(): Flow<List<Long>>
+
+    fun getTagCountsFlow(): Flow<List<MemoTagCount>>
+
     fun getActiveDayCount(): Flow<Int>
 
     // Trash
@@ -44,3 +50,8 @@ interface MemoRepository {
 
     suspend fun deletePermanently(memo: Memo)
 }
+
+data class MemoTagCount(
+    val name: String,
+    val count: Int,
+)

@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.lomo.ui.text.normalizeCjkMixedSpacingForDisplay
 import com.lomo.ui.text.scriptAwareFor
 import com.lomo.ui.text.scriptAwareTextAlign
 import coil3.compose.AsyncImagePainter
@@ -265,15 +266,28 @@ private fun MDText(
     style: TextStyle?,
 ) {
     if (text.isNotEmpty()) {
+        val plainText = text.isPlainTextContent()
+        val displayText = if (plainText) text.text.normalizeCjkMixedSpacingForDisplay() else null
+        val layoutSample: CharSequence = displayText ?: text
         val baseStyle = style ?: MaterialTheme.typography.bodyMedium
-        val finalStyle = baseStyle.copy(color = style?.color ?: MaterialTheme.colorScheme.onSurface).scriptAwareFor(text)
+        val finalStyle = baseStyle.copy(color = style?.color ?: MaterialTheme.colorScheme.onSurface).scriptAwareFor(layoutSample)
+        val textAlign = layoutSample.scriptAwareTextAlign()
 
-        Text(
-            text = text,
-            style = finalStyle,
-            textAlign = text.scriptAwareTextAlign(),
-            modifier = Modifier.fillMaxWidth(),
-        )
+        if (displayText != null) {
+            Text(
+                text = displayText,
+                style = finalStyle,
+                textAlign = textAlign,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Text(
+                text = text,
+                style = finalStyle,
+                textAlign = textAlign,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -755,3 +769,5 @@ private fun AnnotatedString.Builder.visitChildren(
 private data class VoiceMemoItem(
     val url: String,
 )
+
+private fun AnnotatedString.isPlainTextContent(): Boolean = spanStyles.isEmpty() && paragraphStyles.isEmpty()

@@ -1,20 +1,26 @@
 package com.lomo.ui.component.menu
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -26,10 +32,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -47,6 +53,7 @@ fun MemoActionSheet(
     onDismiss: () -> Unit,
 ) {
     val haptic = LocalAppHapticFeedback.current
+    val actionsScrollState = rememberScrollState()
 
     Column(
         modifier =
@@ -60,9 +67,9 @@ fun MemoActionSheet(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
+                    .horizontalScroll(actionsScrollState)
                     .padding(vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             ActionChip(
                 icon = Icons.Outlined.ContentCopy,
@@ -110,6 +117,18 @@ fun MemoActionSheet(
             )
         }
 
+        if (actionsScrollState.maxValue > 0) {
+            SwipeAffordanceIndicator(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                progress = actionsScrollState.value.toFloat() / actionsScrollState.maxValue.toFloat(),
+                canScrollBackward = actionsScrollState.canScrollBackward,
+                canScrollForward = actionsScrollState.canScrollForward,
+            )
+        }
+
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 8.dp),
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
@@ -135,6 +154,79 @@ fun MemoActionSheet(
                 InfoItem(label = stringResource(R.string.info_created), value = state.createdTime)
                 InfoItem(label = stringResource(R.string.info_characters), value = "${state.wordCount}", alignment = Alignment.End)
             }
+        }
+    }
+}
+
+@Composable
+private fun SwipeAffordanceIndicator(
+    progress: Float,
+    canScrollBackward: Boolean,
+    canScrollForward: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val animatedProgress by animateFloatAsState(targetValue = progress.coerceIn(0f, 1f), label = "menu_swipe_progress")
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SwipeEdgeIcon(
+            icon = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+            enabled = canScrollBackward,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        BoxWithConstraints(
+            modifier =
+                Modifier
+                    .width(96.dp)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        ) {
+            val thumbWidth = 28.dp
+            val maxTravel = maxWidth - thumbWidth
+            Box(
+                modifier =
+                    Modifier
+                        .offset(x = maxTravel * animatedProgress)
+                        .width(thumbWidth)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f)),
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        SwipeEdgeIcon(
+            icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            enabled = canScrollForward,
+        )
+    }
+}
+
+@Composable
+private fun SwipeEdgeIcon(
+    icon: ImageVector,
+    enabled: Boolean,
+) {
+    val contentAlpha by animateFloatAsState(targetValue = if (enabled) 1f else 0.38f, label = "menu_swipe_icon_alpha")
+    val containerAlpha by animateFloatAsState(targetValue = if (enabled) 0.8f else 0.45f, label = "menu_swipe_icon_container")
+
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = containerAlpha),
+    ) {
+        Box(
+            modifier = Modifier.size(28.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

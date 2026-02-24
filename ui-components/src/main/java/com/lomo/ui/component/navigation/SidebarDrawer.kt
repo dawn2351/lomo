@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lomo.ui.component.stats.CalendarHeatmap
+import com.lomo.ui.theme.AppSpacing
 import java.time.LocalDate
 
 data class SidebarStats(
@@ -80,8 +81,8 @@ fun SidebarDrawer(
 
     LazyColumn(
         modifier = modifier.fillMaxHeight(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(AppSpacing.Medium),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.Small),
     ) {
         // Header
         item {
@@ -108,7 +109,7 @@ fun SidebarDrawer(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(AppSpacing.Large))
         }
 
         // Stats row
@@ -136,7 +137,7 @@ fun SidebarDrawer(
                             .stringResource(com.lomo.ui.R.string.stat_day),
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(AppSpacing.Medium))
         }
 
         // Heatmap
@@ -145,7 +146,7 @@ fun SidebarDrawer(
                 memoCountByDate = memoCountByDate,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(AppSpacing.Medium))
         }
 
         // MEMO (selected)
@@ -193,7 +194,7 @@ fun SidebarDrawer(
             )
         }
 
-        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+        item { HorizontalDivider(modifier = Modifier.padding(vertical = AppSpacing.Small)) }
 
         // Tags
         if (tags.isNotEmpty()) {
@@ -204,7 +205,7 @@ fun SidebarDrawer(
                             .stringResource(com.lomo.ui.R.string.sidebar_tags),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(vertical = 8.dp),
+                    modifier = Modifier.padding(vertical = AppSpacing.Small),
                 )
             }
 
@@ -309,7 +310,7 @@ private fun TagTreeItem(
                 }
 
                 if (hasChildren) {
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AppSpacing.Small))
                     Icon(
                         if (isExpanded) Icons.Rounded.KeyboardArrowDown else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                         contentDescription =
@@ -339,7 +340,7 @@ private fun TagTreeItem(
         modifier =
             Modifier
                 .height(48.dp)
-                .padding(start = (level * 16).dp),
+                .padding(start = (level * AppSpacing.Medium.value).dp),
     )
 
     AnimatedVisibility(

@@ -131,37 +131,37 @@ class MainViewModel
         )
 
         val sidebarUiState: StateFlow<SidebarUiState> =
-            allMemos
-                .map { memos ->
-                    val localDates =
-                        memos.map { memo ->
+            combine(
+                repository.getMemoCountFlow(),
+                repository.getMemoTimestampsFlow(),
+                repository.getTagCountsFlow(),
+            ) { memoCount, timestamps, tagCounts ->
+                val zoneId = ZoneId.systemDefault()
+                val memoCountByDate =
+                    timestamps
+                        .asSequence()
+                        .map { timestamp ->
                             Instant
-                                .ofEpochMilli(memo.timestamp)
-                                .atZone(ZoneId.systemDefault())
+                                .ofEpochMilli(timestamp)
+                                .atZone(zoneId)
                                 .toLocalDate()
-                        }
+                        }.groupingBy { it }
+                        .eachCount()
 
-                    val tagCounts =
-                        memos
-                            .asSequence()
-                            .flatMap { memo -> memo.tags.distinct().asSequence() }
-                            .groupingBy { tag -> tag }
-                            .eachCount()
-
-                    SidebarUiState(
-                        stats =
-                            SidebarStats(
-                                memoCount = memos.size,
-                                tagCount = tagCounts.size,
-                                dayCount = localDates.distinct().size,
-                            ),
-                        memoCountByDate = localDates.groupingBy { it }.eachCount(),
-                        tags =
-                            tagCounts
-                                .map { (name, count) -> SidebarTag(name = name, count = count) }
-                                .sortedByDescending { sidebarTag -> sidebarTag.count },
-                    )
-                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SidebarUiState())
+                SidebarUiState(
+                    stats =
+                        SidebarStats(
+                            memoCount = memoCount,
+                            tagCount = tagCounts.size,
+                            dayCount = memoCountByDate.size,
+                        ),
+                    memoCountByDate = memoCountByDate,
+                    tags =
+                        tagCounts
+                            .sortedWith(compareByDescending<com.lomo.domain.repository.MemoTagCount> { it.count }.thenBy { it.name })
+                            .map { tagCount -> SidebarTag(name = tagCount.name, count = tagCount.count) },
+                )
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SidebarUiState())
 
         fun createDefaultDirectories(
             forImage: Boolean,

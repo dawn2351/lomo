@@ -2,6 +2,7 @@ package com.lomo.data.repository
 
 import com.lomo.data.local.dao.MemoDao
 import com.lomo.domain.model.Memo
+import com.lomo.domain.repository.MemoTagCount
 import com.lomo.domain.repository.MemoRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -87,6 +88,17 @@ class MemoRepositoryImpl
 
         override fun getMemosByTagList(tag: String): Flow<List<Memo>> =
             dao.getMemosByTagFlow(tag, "$tag/%").map { entities -> entities.map { it.toDomain() } }
+
+        override fun getMemoCountFlow(): Flow<Int> = dao.getMemoCount()
+
+        override fun getMemoTimestampsFlow(): Flow<List<Long>> = dao.getAllTimestamps()
+
+        override fun getTagCountsFlow(): Flow<List<MemoTagCount>> =
+            dao.getTagCountsFlow().map { rows ->
+                rows.map { row ->
+                    MemoTagCount(name = row.name, count = row.count)
+                }
+            }
 
         override fun getActiveDayCount(): Flow<Int> = dao.getActiveDayCount()
 

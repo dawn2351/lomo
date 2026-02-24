@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -76,6 +75,8 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.lomo.ui.theme.AppShapes
+import com.lomo.ui.theme.AppSpacing
 import com.lomo.ui.text.scriptAwareFor
 import com.lomo.ui.theme.MotionTokens
 import kotlinx.coroutines.delay
@@ -278,7 +279,7 @@ fun InputSheet(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                        .clip(AppShapes.ExtraLarge)
                         .background(MaterialTheme.colorScheme.surface)
                         .pointerInput(Unit) {
                             detectTapGestures(onTap = { /* consume */ })
@@ -293,7 +294,7 @@ fun InputSheet(
                                 .padding(vertical = 22.dp)
                                 .width(32.dp)
                                 .height(4.dp)
-                                .clip(RoundedCornerShape(2.dp))
+                                .clip(AppShapes.ExtraSmall)
                                 .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
                                 .clearAndSetSemantics { }
                                 .pointerInput(Unit) {
@@ -337,7 +338,7 @@ fun InputSheet(
                         if (recording) {
                             // Recording UI
                             Column(
-                                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                                modifier = Modifier.fillMaxWidth().padding(AppSpacing.Medium),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 Text(
@@ -348,7 +349,7 @@ fun InputSheet(
                                     color = MaterialTheme.colorScheme.primary,
                                 )
 
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(AppSpacing.Medium))
 
                                 // Timer
                                 val minutes = (recordingDuration / 1000) / 60
@@ -359,7 +360,7 @@ fun InputSheet(
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
 
-                                Spacer(modifier = Modifier.height(24.dp))
+                                Spacer(modifier = Modifier.height(AppSpacing.Large))
 
                                 // Visualizer (Simple placeholder for now)
                                 Row(
@@ -369,7 +370,7 @@ fun InputSheet(
                                             .height(48.dp)
                                             .background(
                                                 MaterialTheme.colorScheme.surfaceContainerHigh,
-                                                RoundedCornerShape(12.dp),
+                                                AppShapes.Medium,
                                             ),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center,
@@ -381,11 +382,11 @@ fun InputSheet(
                                                 .width(
                                                     (50 + (recordingAmplitude.coerceIn(0, 32767) / 32767f) * 200).dp,
                                                 ).height(4.dp)
-                                                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)),
+                                                .background(MaterialTheme.colorScheme.primary, AppShapes.ExtraSmall),
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(24.dp))
+                                Spacer(modifier = Modifier.height(AppSpacing.Large))
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -439,7 +440,7 @@ fun InputSheet(
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
-                                        .padding(20.dp),
+                                        .padding(AppSpacing.Medium),
                             ) {
                                 val bodyLargeStyle = MaterialTheme.typography.bodyLarge
                                 val inputTextStyle =
@@ -469,7 +470,7 @@ fun InputSheet(
                                             unfocusedIndicatorColor = Color.Transparent,
                                             disabledIndicatorColor = Color.Transparent,
                                         ),
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = AppShapes.Large,
                                     textStyle = inputTextStyle,
                                     keyboardOptions =
                                         KeyboardOptions(
@@ -510,7 +511,7 @@ fun InputSheet(
                                     },
                                 )
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(AppSpacing.MediumSmall))
 
                                 // Tag Selector
                                 AnimatedVisibility(
@@ -555,11 +556,11 @@ fun InputSheet(
                                             color =
                                                 MaterialTheme.colorScheme
                                                     .onSurfaceVariant,
-                                            modifier = Modifier.padding(bottom = 8.dp),
+                                            modifier = Modifier.padding(bottom = AppSpacing.Small),
                                         )
                                         LazyRow(
                                             horizontalArrangement =
-                                                Arrangement.spacedBy(8.dp),
+                                                Arrangement.spacedBy(AppSpacing.Small),
                                             modifier =
                                                 Modifier
                                                     .fillMaxWidth()
@@ -599,7 +600,7 @@ fun InputSheet(
                                                 )
                                             }
                                         }
-                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Spacer(modifier = Modifier.height(AppSpacing.MediumSmall))
                                     }
                                 }
 

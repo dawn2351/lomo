@@ -33,7 +33,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
@@ -74,6 +73,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -89,6 +89,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lomo.app.R
 import com.lomo.domain.model.DiscoveredDevice
 import com.lomo.domain.model.ShareTransferState
+import com.lomo.ui.theme.AppShapes
+import com.lomo.ui.theme.AppSpacing
+import com.lomo.ui.util.LocalAppHapticFeedback
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,6 +111,7 @@ fun ShareScreen(
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val haptic = LocalAppHapticFeedback.current
 
     var showPairingDialog by remember { mutableStateOf(false) }
     var pairingCodeInput by remember { mutableStateOf("") }
@@ -137,12 +141,20 @@ fun ShareScreen(
         }
     }
 
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.share_lan_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = {
+                            haptic.medium()
+                            onBackClick()
+                        },
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back),
@@ -152,7 +164,9 @@ fun ShareScreen(
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                     ),
+                scrollBehavior = scrollBehavior,
             )
         },
     ) { padding ->
@@ -161,7 +175,7 @@ fun ShareScreen(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = AppSpacing.ScreenHorizontalPadding)
                     .pointerInput(isDeviceNameFieldFocused, canSaveDeviceName) {
                         detectTapGestures {
                             if (isDeviceNameFieldFocused && !canSaveDeviceName) {
@@ -217,7 +231,7 @@ fun ShareScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(AppSpacing.MediumSmall))
 
             AnimatedVisibility(
                 visible = showPreviewSection,
@@ -230,7 +244,7 @@ fun ShareScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(AppSpacing.Medium))
 
             AnimatedVisibility(
                 visible = transferState !is ShareTransferState.Idle,
@@ -243,7 +257,7 @@ fun ShareScreen(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 14.dp),
+                            .padding(bottom = AppSpacing.MediumSmall),
                 )
             }
 
@@ -263,7 +277,7 @@ fun ShareScreen(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp),
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(AppSpacing.Small))
                         Text(
                             text = stringResource(R.string.share_nearby_devices),
                             style = MaterialTheme.typography.titleSmall,
@@ -276,7 +290,7 @@ fun ShareScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         if (devices.isEmpty()) {
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(AppSpacing.Small))
                             CircularProgressIndicator(
                                 modifier = Modifier.size(14.dp),
                                 strokeWidth = 2.dp,
@@ -285,7 +299,7 @@ fun ShareScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(AppSpacing.MediumSmall))
                 }
             }
 
@@ -304,7 +318,7 @@ fun ShareScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(AppSpacing.MediumSmall),
                     ) {
                         itemsIndexed(devices, key = { _, item -> "${item.host}:${item.port}" }) { _, device ->
                             DeviceCard(
@@ -337,7 +351,7 @@ fun ShareScreen(
                 Text(stringResource(R.string.share_e2e_password_dialog_title))
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.Small)) {
                     Text(
                         text = stringResource(R.string.share_e2e_password_dialog_message),
                         style = MaterialTheme.typography.bodyMedium,
@@ -437,15 +451,15 @@ private fun LanShareSettingsCard(
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(20.dp),
+        shape = AppShapes.Large,
         tonalElevation = 1.dp,
     ) {
         Column(
             modifier =
                 Modifier
-                    .padding(16.dp)
+                    .padding(AppSpacing.Medium)
                     .animateContentSize(animationSpec = tween(280)),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.MediumSmall),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -462,7 +476,7 @@ private fun LanShareSettingsCard(
                         modifier = Modifier.padding(8.dp),
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(AppSpacing.MediumSmall))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.share_e2e_enabled_title),
@@ -484,7 +498,7 @@ private fun LanShareSettingsCard(
                         },
                     active = e2eEnabled,
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(AppSpacing.Small))
                 Switch(
                     checked = e2eEnabled,
                     onCheckedChange = onToggleE2e,
@@ -498,14 +512,17 @@ private fun LanShareSettingsCard(
             ) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = AppShapes.Medium,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                .padding(
+                                    horizontal = AppSpacing.MediumSmall,
+                                    vertical = AppSpacing.Small,
+                                ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
@@ -574,7 +591,7 @@ private fun LanShareSettingsCard(
                     TextButton(onClick = onUseSystemDeviceName) {
                         Text(stringResource(R.string.share_device_name_use_system))
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AppSpacing.Small))
                     Button(
                         onClick = onSaveDeviceName,
                         enabled = saveNameEnabled,
@@ -601,7 +618,7 @@ private fun StatusBadge(
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
             },
-        shape = RoundedCornerShape(999.dp),
+        shape = AppShapes.Full,
     ) {
         Text(
             text = text,
@@ -612,7 +629,7 @@ private fun StatusBadge(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.Small, vertical = AppSpacing.ExtraSmall),
         )
     }
 }
@@ -710,17 +727,17 @@ private fun MemoPreviewCard(
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        shape = RoundedCornerShape(16.dp),
+        shape = AppShapes.Large,
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(AppSpacing.Medium),
         ) {
             Text(
                 text = stringResource(R.string.share_memo_preview_title),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AppSpacing.Small))
             Text(
                 text = content,
                 style = MaterialTheme.typography.bodyMedium,
@@ -800,7 +817,7 @@ private fun TransferStateBanner(
     Surface(
         modifier = modifier,
         color = bannerState.containerColor,
-        shape = RoundedCornerShape(12.dp),
+        shape = AppShapes.Medium,
         onClick = {
             if (state is ShareTransferState.Success || state is ShareTransferState.Error) {
                 onDismiss()
@@ -810,7 +827,7 @@ private fun TransferStateBanner(
         Column(
             modifier =
                 Modifier
-                    .padding(16.dp)
+                    .padding(AppSpacing.Medium)
                     .animateContentSize(animationSpec = tween(180)),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -821,14 +838,14 @@ private fun TransferStateBanner(
                         tint = bannerState.contentColor,
                         modifier = Modifier.size(20.dp),
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AppSpacing.Small))
                 } else {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
                         color = bannerState.contentColor,
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AppSpacing.Small))
                 }
 
                 Text(
@@ -839,13 +856,13 @@ private fun TransferStateBanner(
             }
 
             if (state is ShareTransferState.Transferring) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AppSpacing.Small))
                 LinearProgressIndicator(
                     progress = { state.progress },
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp)),
+                            .clip(AppShapes.ExtraSmall),
                     color = bannerState.contentColor,
                     trackColor = bannerState.contentColor.copy(alpha = 0.2f),
                 )
@@ -869,13 +886,13 @@ private fun DeviceCard(
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Medium,
     ) {
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(AppSpacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box {
@@ -909,7 +926,7 @@ private fun DeviceCard(
                 )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(AppSpacing.Medium))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -976,13 +993,13 @@ private fun DeviceSearchingState(modifier: Modifier = Modifier) {
                         scaleY = pulseScale
                     },
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AppSpacing.Medium))
         Text(
             text = stringResource(R.string.share_searching_devices),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AppSpacing.ExtraSmall))
         Text(
             text = stringResource(R.string.share_searching_hint),
             style = MaterialTheme.typography.bodySmall,

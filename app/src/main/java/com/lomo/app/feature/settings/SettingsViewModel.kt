@@ -2,11 +2,14 @@ package com.lomo.app.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lomo.data.share.ShareServiceManager
 import com.lomo.data.util.PreferenceKeys
 import com.lomo.domain.repository.SettingsRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -17,6 +20,7 @@ class SettingsViewModel
     @Inject
     constructor(
         private val settings: SettingsRepository,
+        private val shareServiceManager: ShareServiceManager,
     ) : ViewModel() {
         val rootDirectory: StateFlow<String> =
             settings
@@ -144,6 +148,36 @@ class SettingsViewModel
                     PreferenceKeys.Defaults.SHARE_CARD_SHOW_BRAND,
                 )
 
+        val lanShareE2eEnabled: StateFlow<Boolean> =
+            shareServiceManager
+                .lanShareE2eEnabled
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    PreferenceKeys.Defaults.LAN_SHARE_E2E_ENABLED,
+                )
+
+        val lanSharePairingConfigured: StateFlow<Boolean> =
+            shareServiceManager
+                .lanSharePairingConfigured
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    false,
+                )
+
+        val lanShareDeviceName: StateFlow<String> =
+            shareServiceManager
+                .lanShareDeviceName
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    "",
+                )
+
+        private val _pairingCodeError = MutableStateFlow<String?>(null)
+        val pairingCodeError: StateFlow<String?> = _pairingCodeError.asStateFlow()
+
         fun updateRootDirectory(path: String) {
             viewModelScope.launch { settings.setRootDirectory(path) }
         }
@@ -214,5 +248,39 @@ class SettingsViewModel
 
         fun updateShareCardShowBrand(enabled: Boolean) {
             viewModelScope.launch { settings.setShareCardShowBrand(enabled) }
+        }
+
+        fun updateLanShareE2eEnabled(enabled: Boolean) {
+            viewModelScope.launch {
+                shareServiceManager.setLanShareE2eEnabled(enabled)
+            }
+        }
+
+        fun updateLanSharePairingCode(pairingCode: String) {
+            viewModelScope.launch {
+                try {
+                    shareServiceManager.setLanSharePairingCode(pairingCode)
+                    _pairingCodeError.value = null
+                } catch (e: Exception) {
+                    _pairingCodeError.value = e.message ?: "Pairing code must be 6-64 characters"
+                }
+            }
+        }
+
+        fun clearLanSharePairingCode() {
+            viewModelScope.launch {
+                shareServiceManager.clearLanSharePairingCode()
+                _pairingCodeError.value = null
+            }
+        }
+
+        fun clearPairingCodeError() {
+            _pairingCodeError.value = null
+        }
+
+        fun updateLanShareDeviceName(deviceName: String) {
+            viewModelScope.launch {
+                shareServiceManager.setLanShareDeviceName(deviceName)
+            }
         }
     }

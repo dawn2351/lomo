@@ -169,6 +169,7 @@ class MemoUiMapper
 
             val tagPatterns = normalizedTags.map(::createTagPattern)
             stripKnownTags(root.node, tagPatterns)
+            trimParagraphEdges(root.node)
             pruneEmptyParagraphs(root.node)
             return root
         }
@@ -223,9 +224,36 @@ class MemoUiMapper
                 .replace(HORIZONTAL_WHITESPACE_REGEX, " ")
                 .replace(SPACE_BEFORE_PUNCTUATION_REGEX, "")
                 .replace(SPACE_BEFORE_NEWLINE_REGEX, "\n")
+                .replace(LEADING_EMPTY_LINES_REGEX, "")
         }
 
         private fun createTagPattern(tag: String): Regex = Regex("(^|\\s)#${Regex.escape(tag)}(?:/)?(?=\\s|$|[.,!?;:，。！？；：、)\\]}】）])")
+
+        private fun trimParagraphEdges(root: Node) {
+            traverse(root) { node ->
+                if (node is Paragraph) {
+                    trimParagraphEdge(node, fromStart = true)
+                    trimParagraphEdge(node, fromStart = false)
+                }
+            }
+        }
+
+        private fun trimParagraphEdge(
+            paragraph: Paragraph,
+            fromStart: Boolean,
+        ) {
+            var cursor: Node? = if (fromStart) paragraph.firstChild else paragraph.lastChild
+            while (cursor != null && isParagraphEdgeJunk(cursor)) {
+                val next = if (fromStart) cursor.next else cursor.previous
+                cursor.unlink()
+                cursor = next
+            }
+        }
+
+        private fun isParagraphEdgeJunk(node: Node): Boolean =
+            node is SoftLineBreak ||
+                node is HardLineBreak ||
+                (node is Text && node.literal.orEmpty().isBlank())
 
         private fun pruneEmptyParagraphs(root: Node) {
             val emptyParagraphs = mutableListOf<Paragraph>()
@@ -296,5 +324,6 @@ class MemoUiMapper
             private val HORIZONTAL_WHITESPACE_REGEX = Regex("[ \\t]{2,}")
             private val SPACE_BEFORE_PUNCTUATION_REGEX = Regex("[ \\t]+(?=[.,!?;:，。！？；：、)\\]}】）])")
             private val SPACE_BEFORE_NEWLINE_REGEX = Regex("[ \\t]+(?=\\n)")
+            private val LEADING_EMPTY_LINES_REGEX = Regex("^(?:[ \\t]*\\n)+")
         }
     }

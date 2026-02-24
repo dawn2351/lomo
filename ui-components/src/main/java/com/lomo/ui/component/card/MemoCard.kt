@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lomo.ui.component.markdown.MarkdownRenderer
+import com.lomo.ui.theme.AppSpacing
 import com.lomo.ui.theme.AppShapes
 import kotlinx.collections.immutable.ImmutableList
 import java.time.Instant
@@ -154,7 +155,7 @@ fun MemoCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp)) // More breathing room between header and content
+            Spacer(modifier = Modifier.height(AppSpacing.Small))
 
             // Markdown Content
             Box(

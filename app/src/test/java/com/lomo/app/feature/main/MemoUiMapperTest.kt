@@ -2,9 +2,11 @@ package com.lomo.app.feature.main
 
 import com.lomo.domain.model.Memo
 import org.commonmark.node.FencedCodeBlock
+import org.commonmark.node.HardLineBreak
 import org.commonmark.node.Link
 import org.commonmark.node.Node
 import org.commonmark.node.Paragraph
+import org.commonmark.node.SoftLineBreak
 import org.commonmark.node.Text
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,6 +81,32 @@ class MemoUiMapperTest {
         assertTrue(renderedText.contains("body line"))
         assertFalse(renderedText.contains("#todo"))
         assertFalse(renderedText.contains("#work"))
+    }
+
+    @Test
+    fun `mapToUiModel removes leading blank line when first line is tag only`() {
+        val memo =
+            memo(
+                content =
+                    """
+                    #todo
+                    正文
+                    """.trimIndent(),
+                tags = listOf("todo"),
+            )
+
+        val uiModel = mapper.mapToUiModel(memo, rootPath = null, imagePath = null, imageMap = emptyMap())
+        val paragraph = collectNodes(uiModel.markdownNode.node).filterIsInstance<Paragraph>().first()
+        val firstChild = paragraph.firstChild
+        val firstText =
+            collectNodes(paragraph)
+                .filterIsInstance<Text>()
+                .mapNotNull { it.literal }
+                .first { it.isNotBlank() }
+
+        assertFalse(firstChild is SoftLineBreak || firstChild is HardLineBreak)
+        assertFalse(firstText.startsWith("\n"))
+        assertEquals("正文", firstText)
     }
 
     private fun memo(

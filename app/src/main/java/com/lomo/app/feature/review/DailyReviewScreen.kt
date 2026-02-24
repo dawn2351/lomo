@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -33,6 +34,7 @@ import com.lomo.app.R
 import com.lomo.app.feature.memo.MemoCardEntry
 import com.lomo.app.feature.memo.MemoInteractionHost
 import com.lomo.ui.component.common.EmptyState
+import com.lomo.ui.theme.AppSpacing
 import com.lomo.ui.util.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,6 +67,7 @@ fun DailyReviewScreen(
         onLanShare = onNavigateToShare,
     ) { showMenu, openEditor ->
         Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
                 TopAppBar(
                     title = {
@@ -83,6 +86,11 @@ fun DailyReviewScreen(
                             )
                         }
                     },
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        ),
                     scrollBehavior = scrollBehavior,
                 )
             },
@@ -103,7 +111,7 @@ fun DailyReviewScreen(
                         Text(
                             text = state.message,
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(AppSpacing.Medium),
                         )
                     }
 
@@ -125,8 +133,8 @@ fun DailyReviewScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 HorizontalPager(
                                     state = pagerState,
-                                    contentPadding = PaddingValues(horizontal = 24.dp),
-                                    pageSpacing = 16.dp,
+                                    contentPadding = PaddingValues(horizontal = AppSpacing.Large),
+                                    pageSpacing = AppSpacing.Medium,
                                     modifier =
                                         Modifier
                                             .weight(1f)
@@ -141,7 +149,7 @@ fun DailyReviewScreen(
                                             modifier =
                                                 Modifier
                                                     .fillMaxWidth()
-                                                    .padding(bottom = 32.dp)
+                                                    .padding(bottom = AppSpacing.ExtraLarge)
                                                     .verticalScroll(rememberScrollState()),
                                         ) {
                                             MemoCardEntry(
@@ -161,7 +169,7 @@ fun DailyReviewScreen(
                                                 modifier =
                                                     Modifier
                                                         .fillMaxWidth()
-                                                        .padding(top = 16.dp),
+                                                        .padding(top = AppSpacing.Medium),
                                                 textAlign = TextAlign.Center,
                                             )
                                         }
