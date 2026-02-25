@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
@@ -28,6 +29,7 @@ import com.lomo.app.feature.main.MainViewModel
 import com.lomo.app.feature.update.AppUpdateViewModel
 import com.lomo.app.navigation.LomoNavHost
 import com.lomo.data.share.ShareServiceManager
+import com.lomo.ui.component.markdown.MarkdownRenderer
 
 @Composable
 fun LomoAppRoot(
@@ -84,13 +86,18 @@ fun LomoAppRoot(
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text =
-                            releaseNotes
-                                ?: stringResource(com.lomo.app.R.string.update_dialog_release_notes_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (releaseNotes.isNullOrBlank()) {
+                        Text(
+                            text = stringResource(com.lomo.app.R.string.update_dialog_release_notes_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        MarkdownRenderer(
+                            content = releaseNotes,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             },
             confirmButton = {
