@@ -96,18 +96,30 @@ class MemoTrashMutationHandler
         }
 
         suspend fun restoreFromTrash(memo: Memo) {
+            if (!restoreFromTrashFileOnly(memo)) return
+            restoreFromTrashInDb(memo)
+        }
+
+        suspend fun restoreFromTrashInDb(memo: Memo): Boolean {
+            val sourceMemo = dao.getTrashMemo(memo.id)?.toDomain()?.copy(isDeleted = false) ?: return false
+            persistMainMemo(sourceMemo)
+            dao.deleteTrashMemoById(sourceMemo.id)
+            return true
+        }
+
+        suspend fun restoreFromTrashFileOnly(memo: Memo): Boolean {
             val filename = memo.date + ".md"
-            val trashContent = fileDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return
+            val trashContent = fileDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return false
             val trashLines = trashContent.lines().toMutableList()
 
             val (start, end) =
                 textProcessor.findMemoBlock(trashLines, memo.rawContent, memo.timestamp, memo.id)
-            if (start == -1) return
+            if (start == -1) return false
 
             val restoredLines = trashLines.subList(start, end + 1).toList()
             if (!textProcessor.removeMemoBlock(trashLines, memo.rawContent, memo.timestamp, memo.id)) {
                 Timber.e("restoreMemo: Failed to find memo block in trash file for ${memo.id}")
-                return
+                return false
             }
 
             val restoredBlock = "\n" + restoredLines.joinToString("\n") + "\n"
@@ -139,9 +151,7 @@ class MemoTrashMutationHandler
             if (metadata != null) {
                 upsertMainState(filename, metadata.lastModified)
             }
-
-            persistMainMemo(memo.copy(isDeleted = false))
-            dao.deleteTrashMemoById(memo.id)
+            return true
         }
 
         suspend fun deleteFromTrashPermanently(memo: Memo) {

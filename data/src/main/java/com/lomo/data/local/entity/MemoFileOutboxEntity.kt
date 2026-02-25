@@ -32,4 +32,5 @@ object MemoFileOutboxOp {
     const val CREATE = "CREATE"
     const val UPDATE = "UPDATE"
     const val DELETE = "DELETE"
+    const val RESTORE = "RESTORE"
 }

@@ -97,7 +97,7 @@ class MemoRepositoryImpl
         override fun getDeletedMemosList(): Flow<List<Memo>> = dao.getDeletedMemosFlow().map { entities -> entities.map { it.toDomain() } }
 
         override suspend fun restoreMemo(memo: Memo) {
-            synchronizer.restoreMemo(memo)
+            synchronizer.restoreMemoAsync(memo)
         }
 
         override suspend fun deletePermanently(memo: Memo) {

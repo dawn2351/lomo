@@ -184,6 +184,16 @@ class MainViewModel
                 .flatMapLatest { (query, tag) -> resolveMemoFlow(query, tag) }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+        init {
+            // Keep deleting flags only for rows that still exist in current list.
+            // This avoids alpha bounce-back when DB removal arrives a little later.
+            memos
+                .onEach { list ->
+                    val existingIds = list.asSequence().map { it.id }.toSet()
+                    deletingMemoIds.value = deletingMemoIds.value.intersect(existingIds)
+                }.launchIn(viewModelScope)
+        }
+
         @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
         val uiMemos: StateFlow<List<MemoUiModel>> =
             combine(
@@ -237,15 +247,20 @@ class MainViewModel
             viewModelScope.launch {
                 deletingMemoIds.value = deletingMemoIds.value + memo.id
                 kotlinx.coroutines.delay(300L) // Wait for fade out animation
+                var deleted = false
                 try {
                     repository.deleteMemo(memo)
                     appWidgetRepository.updateAllWidgets()
+                    deleted = true
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     _errorMessage.value = e.userMessage()
+                } finally {
+                    if (!deleted) {
+                        deletingMemoIds.value = deletingMemoIds.value - memo.id
+                    }
                 }
-                deletingMemoIds.value = deletingMemoIds.value - memo.id
             }
         }
 

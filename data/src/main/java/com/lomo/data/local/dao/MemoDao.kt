@@ -260,6 +260,19 @@ interface MemoDao {
         return insertMemoFileOutbox(outbox)
     }
 
+    @Transaction
+    suspend fun restoreMemoFromTrashWithOutbox(
+        memo: MemoEntity,
+        outbox: MemoFileOutboxEntity,
+    ): Long {
+        insertMemo(memo)
+        replaceTagRefsForMemo(memo)
+        val tokenizedContent = com.lomo.data.util.SearchTokenizer.tokenize(memo.content)
+        insertMemoFts(com.lomo.data.local.entity.MemoFtsEntity(memo.id, tokenizedContent))
+        deleteTrashMemoById(memo.id)
+        return insertMemoFileOutbox(outbox)
+    }
+
     @Query("SELECT * FROM LomoTrash WHERE id = :id")
     suspend fun getTrashMemo(id: String): TrashMemoEntity?
 

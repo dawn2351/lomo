@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,21 @@ import androidx.compose.ui.unit.dp
 import com.lomo.ui.R
 import com.lomo.ui.util.LocalAppHapticFeedback
 
+enum class MemoActionHaptic {
+    NONE,
+    MEDIUM,
+    HEAVY,
+}
+
+data class MemoActionSheetAction(
+    val icon: ImageVector,
+    val label: String,
+    val onClick: () -> Unit,
+    val isDestructive: Boolean = false,
+    val dismissAfterClick: Boolean = true,
+    val haptic: MemoActionHaptic = MemoActionHaptic.MEDIUM,
+)
+
 @Composable
 fun MemoActionSheet(
     state: MemoMenuState,
@@ -51,9 +67,53 @@ fun MemoActionSheet(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    actions: List<MemoActionSheetAction>? = null,
+    useHorizontalScroll: Boolean = true,
+    showSwipeAffordance: Boolean = true,
+    equalWidthActions: Boolean = false,
 ) {
     val haptic = LocalAppHapticFeedback.current
     val actionsScrollState = rememberScrollState()
+    val sheetActions =
+        actions
+            ?: listOf(
+                MemoActionSheetAction(
+                    icon = Icons.Outlined.ContentCopy,
+                    label = stringResource(R.string.action_copy),
+                    onClick = onCopy,
+                    dismissAfterClick = true,
+                    haptic = MemoActionHaptic.MEDIUM,
+                ),
+                MemoActionSheetAction(
+                    icon = Icons.Outlined.Share,
+                    label = stringResource(R.string.action_share),
+                    onClick = onShare,
+                    dismissAfterClick = true,
+                    haptic = MemoActionHaptic.MEDIUM,
+                ),
+                MemoActionSheetAction(
+                    icon = Icons.Outlined.Wifi,
+                    label = stringResource(R.string.action_lan_share),
+                    onClick = onLanShare,
+                    dismissAfterClick = true,
+                    haptic = MemoActionHaptic.MEDIUM,
+                ),
+                MemoActionSheetAction(
+                    icon = Icons.Outlined.Edit,
+                    label = stringResource(R.string.action_edit),
+                    onClick = onEdit,
+                    dismissAfterClick = false,
+                    haptic = MemoActionHaptic.MEDIUM,
+                ),
+                MemoActionSheetAction(
+                    icon = Icons.Outlined.Delete,
+                    label = stringResource(R.string.action_delete),
+                    onClick = onDelete,
+                    isDestructive = true,
+                    dismissAfterClick = false,
+                    haptic = MemoActionHaptic.HEAVY,
+                ),
+            )
 
     Column(
         modifier =
@@ -67,57 +127,40 @@ fun MemoActionSheet(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(actionsScrollState)
-                    .padding(vertical = 16.dp),
+                    .let { base ->
+                        if (useHorizontalScroll) {
+                            base.horizontalScroll(actionsScrollState)
+                        } else {
+                            base
+                        }
+                    }.padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ActionChip(
-                icon = Icons.Outlined.ContentCopy,
-                label = stringResource(R.string.action_copy),
-                onClick = {
-                    haptic.medium()
-                    onCopy()
-                    onDismiss()
-                },
-            )
-            ActionChip(
-                icon = Icons.Outlined.Share,
-                label = stringResource(R.string.action_share),
-                onClick = {
-                    haptic.medium()
-                    onShare()
-                    onDismiss()
-                },
-            )
-            ActionChip(
-                icon = Icons.Outlined.Wifi,
-                label = stringResource(R.string.action_lan_share),
-                onClick = {
-                    haptic.medium()
-                    onLanShare()
-                    onDismiss()
-                },
-            )
-            ActionChip(
-                icon = Icons.Outlined.Edit,
-                label = stringResource(R.string.action_edit),
-                onClick = {
-                    haptic.medium()
-                    onEdit()
-                },
-            )
-            ActionChip(
-                icon = Icons.Outlined.Delete,
-                label = stringResource(R.string.action_delete),
-                isDestructive = true,
-                onClick = {
-                    haptic.heavy()
-                    onDelete()
-                },
-            )
+            sheetActions.forEach { action ->
+                ActionChip(
+                    icon = action.icon,
+                    label = action.label,
+                    isDestructive = action.isDestructive,
+                    modifier =
+                        if (equalWidthActions) {
+                            Modifier.weight(1f)
+                        } else {
+                            Modifier
+                        },
+                    onClick = {
+                        when (action.haptic) {
+                            MemoActionHaptic.NONE -> Unit
+                            MemoActionHaptic.MEDIUM -> haptic.medium()
+                            MemoActionHaptic.HEAVY -> haptic.heavy()
+                        }
+                        action.onClick()
+                        if (action.dismissAfterClick) onDismiss()
+                    },
+                )
+            }
         }
 
-        if (actionsScrollState.maxValue > 0) {
+        if (useHorizontalScroll && showSwipeAffordance && actionsScrollState.maxValue > 0) {
             SwipeAffordanceIndicator(
                 modifier =
                     Modifier
@@ -235,6 +278,7 @@ private fun SwipeEdgeIcon(
 private fun ActionChip(
     icon: ImageVector,
     label: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
     isDestructive: Boolean = false,
 ) {
@@ -255,7 +299,7 @@ private fun ActionChip(
         onClick = onClick,
         color = containerColor,
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.height(64.dp).width(72.dp),
+        modifier = modifier.height(64.dp).widthIn(min = 72.dp),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -273,6 +317,7 @@ private fun ActionChip(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = contentColor,
+                maxLines = 2,
             )
         }
     }

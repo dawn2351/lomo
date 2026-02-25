@@ -108,6 +108,17 @@ class MemoSynchronizer
 
         suspend fun restoreMemo(memo: Memo) = mutex.withLock { withContext(Dispatchers.IO) { mutationHandler.restoreMemo(memo) } }
 
+        suspend fun restoreMemoAsync(memo: Memo) =
+            withContext(Dispatchers.IO) {
+                val outboxId =
+                    mutex.withLock {
+                        mutationHandler.restoreMemoInDb(memo)
+                    }
+                if (outboxId != null) {
+                    requestOutboxDrain()
+                }
+            }
+
         suspend fun deletePermanently(memo: Memo) =
             mutex.withLock { withContext(Dispatchers.IO) { mutationHandler.deletePermanently(memo) } }
 

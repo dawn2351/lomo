@@ -177,6 +177,17 @@ class MemoMutationHandler
             trashMutationHandler.restoreFromTrash(memo)
         }
 
+        suspend fun restoreMemoInDb(memo: Memo): Long? {
+            val sourceMemo = dao.getTrashMemo(memo.id)?.toDomain() ?: return null
+            val restoredMemo = sourceMemo.copy(isDeleted = false)
+            return dao.restoreMemoFromTrashWithOutbox(
+                memo = MemoEntity.fromDomain(restoredMemo),
+                outbox = buildRestoreOutbox(sourceMemo),
+            )
+        }
+
+        suspend fun flushRestoreMemoToFile(memo: Memo): Boolean = trashMutationHandler.restoreFromTrashFileOnly(memo)
+
         suspend fun deletePermanently(memo: Memo) {
             trashMutationHandler.deleteFromTrashPermanently(memo)
         }
@@ -209,6 +220,7 @@ class MemoMutationHandler
                 }
 
                 MemoFileOutboxOp.DELETE -> flushDeleteMemoToFile(outboxSourceMemo(item))
+                MemoFileOutboxOp.RESTORE -> flushRestoreMemoToFile(outboxSourceMemo(item))
                 else -> false
             }
 
@@ -289,6 +301,17 @@ class MemoMutationHandler
                 memoTimestamp = sourceMemo.timestamp,
                 memoRawContent = sourceMemo.rawContent,
                 newContent = null,
+                createRawContent = null,
+            )
+
+        private fun buildRestoreOutbox(sourceMemo: Memo): MemoFileOutboxEntity =
+            MemoFileOutboxEntity(
+                operation = MemoFileOutboxOp.RESTORE,
+                memoId = sourceMemo.id,
+                memoDate = sourceMemo.date,
+                memoTimestamp = sourceMemo.timestamp,
+                memoRawContent = sourceMemo.rawContent,
+                newContent = sourceMemo.content,
                 createRawContent = null,
             )
 
