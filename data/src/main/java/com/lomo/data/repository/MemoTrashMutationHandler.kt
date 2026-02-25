@@ -27,6 +27,18 @@ class MemoTrashMutationHandler
         private val textProcessor: MemoTextProcessor,
     ) {
         suspend fun moveToTrash(memo: Memo) {
+            if (!moveToTrashFileOnly(memo)) return
+            moveToTrashInDb(memo)
+        }
+
+        suspend fun moveToTrashInDb(memo: Memo) {
+            dao.deleteMemoById(memo.id)
+            dao.deleteTagRefsByMemoId(memo.id)
+            dao.deleteMemoFts(memo.id)
+            dao.insertTrashMemo(TrashMemoEntity.fromDomain(memo.copy(isDeleted = true)))
+        }
+
+        suspend fun moveToTrashFileOnly(memo: Memo): Boolean {
             val filename = memo.date + ".md"
             val cachedUriString = getMainSafUri(filename)
             val currentFileContent =
@@ -36,16 +48,16 @@ class MemoTrashMutationHandler
                 } else {
                     fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 }
-            if (currentFileContent == null) return
+            if (currentFileContent == null) return false
             val lines = currentFileContent.lines().toMutableList()
 
             val (start, end) = textProcessor.findMemoBlock(lines, memo.rawContent, memo.timestamp, memo.id)
-            if (start == -1 || end < start) return
+            if (start == -1 || end < start) return false
 
             val linesToTrash = lines.subList(start, end + 1)
             val trashContent = "\n" + linesToTrash.joinToString("\n") + "\n"
 
-            if (!textProcessor.removeMemoBlock(lines, memo.rawContent, memo.timestamp, memo.id)) return
+            if (!textProcessor.removeMemoBlock(lines, memo.rawContent, memo.timestamp, memo.id)) return false
 
             fileDataSource.saveFileIn(
                 directory = MemoDirectoryType.TRASH,
@@ -80,11 +92,7 @@ class MemoTrashMutationHandler
             if (trashMetadata != null) {
                 upsertTrashState(filename, trashMetadata.lastModified)
             }
-
-            dao.deleteMemoById(memo.id)
-            dao.deleteTagRefsByMemoId(memo.id)
-            dao.deleteMemoFts(memo.id)
-            dao.insertTrashMemo(TrashMemoEntity.fromDomain(memo.copy(isDeleted = true)))
+            return true
         }
 
         suspend fun restoreFromTrash(memo: Memo) {

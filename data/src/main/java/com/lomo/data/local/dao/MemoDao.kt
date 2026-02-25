@@ -5,6 +5,8 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
+import com.lomo.data.local.entity.MemoFileOutboxEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoTagCrossRefEntity
 import com.lomo.data.local.entity.TrashMemoEntity
@@ -83,6 +85,9 @@ interface MemoDao {
     suspend fun insertMemo(memo: MemoEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMemoFileOutbox(item: MemoFileOutboxEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTagRefs(refs: List<MemoTagCrossRefEntity>)
 
     @Query("DELETE FROM MemoTagCrossRef WHERE memoId = :memoId")
@@ -127,6 +132,30 @@ interface MemoDao {
 
     @Query("SELECT * FROM Lomo WHERE id = :id")
     suspend fun getMemo(id: String): MemoEntity?
+
+    @Query("SELECT * FROM MemoFileOutbox ORDER BY id ASC LIMIT :limit")
+    suspend fun getMemoFileOutboxBatch(limit: Int): List<MemoFileOutboxEntity>
+
+    @Query("DELETE FROM MemoFileOutbox WHERE id = :id")
+    suspend fun deleteMemoFileOutboxById(id: Long)
+
+    @Query(
+        """
+        UPDATE MemoFileOutbox
+        SET retryCount = retryCount + 1,
+            updatedAt = :updatedAt,
+            lastError = :lastError
+        WHERE id = :id
+        """,
+    )
+    suspend fun markMemoFileOutboxFailed(
+        id: Long,
+        updatedAt: Long,
+        lastError: String?,
+    )
+
+    @Query("SELECT COUNT(*) FROM MemoFileOutbox")
+    suspend fun getMemoFileOutboxCount(): Int
 
     @Query(
         """
@@ -206,6 +235,30 @@ interface MemoDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrashMemo(memo: TrashMemoEntity)
+
+    @Transaction
+    suspend fun persistMemoWithOutbox(
+        memo: MemoEntity,
+        outbox: MemoFileOutboxEntity,
+    ): Long {
+        insertMemo(memo)
+        replaceTagRefsForMemo(memo)
+        val tokenizedContent = com.lomo.data.util.SearchTokenizer.tokenize(memo.content)
+        insertMemoFts(com.lomo.data.local.entity.MemoFtsEntity(memo.id, tokenizedContent))
+        return insertMemoFileOutbox(outbox)
+    }
+
+    @Transaction
+    suspend fun moveMemoToTrashWithOutbox(
+        trashMemo: TrashMemoEntity,
+        outbox: MemoFileOutboxEntity,
+    ): Long {
+        deleteMemoById(trashMemo.id)
+        deleteTagRefsByMemoId(trashMemo.id)
+        deleteMemoFts(trashMemo.id)
+        insertTrashMemo(trashMemo)
+        return insertMemoFileOutbox(outbox)
+    }
 
     @Query("SELECT * FROM LomoTrash WHERE id = :id")
     suspend fun getTrashMemo(id: String): TrashMemoEntity?

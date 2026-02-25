@@ -26,7 +26,7 @@ class MemoRepositoryImpl
             content: String,
             timestamp: Long,
         ) {
-            synchronizer.saveMemo(content, timestamp)
+            synchronizer.saveMemoAsync(content, timestamp)
         }
 
         override suspend fun prewarmTodayMemoTarget(timestamp: Long) {
@@ -41,11 +41,11 @@ class MemoRepositoryImpl
             memo: Memo,
             newContent: String,
         ) {
-            synchronizer.updateMemo(memo, newContent)
+            synchronizer.updateMemoAsync(memo, newContent)
         }
 
         override suspend fun deleteMemo(memo: Memo) {
-            synchronizer.deleteMemo(memo)
+            synchronizer.deleteMemoAsync(memo)
         }
 
         override fun searchMemosList(query: String): Flow<List<Memo>> {

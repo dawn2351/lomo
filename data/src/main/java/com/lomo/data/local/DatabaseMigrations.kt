@@ -49,8 +49,35 @@ val MIGRATION_19_20: Migration =
         }
     }
 
+val MIGRATION_20_21: Migration =
+    object : Migration(20, 21) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `MemoFileOutbox` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `operation` TEXT NOT NULL,
+                    `memoId` TEXT NOT NULL,
+                    `memoDate` TEXT NOT NULL,
+                    `memoTimestamp` INTEGER NOT NULL,
+                    `memoRawContent` TEXT NOT NULL,
+                    `newContent` TEXT,
+                    `createRawContent` TEXT,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL,
+                    `retryCount` INTEGER NOT NULL,
+                    `lastError` TEXT
+                )
+                """.trimIndent(),
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_memoId` ON `MemoFileOutbox` (`memoId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_createdAt` ON `MemoFileOutbox` (`createdAt`)")
+        }
+    }
+
 val ALL_DATABASE_MIGRATIONS =
     arrayOf(
         MIGRATION_18_19,
         MIGRATION_19_20,
+        MIGRATION_20_21,
     )

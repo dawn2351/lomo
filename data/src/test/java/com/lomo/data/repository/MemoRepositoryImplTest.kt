@@ -34,16 +34,16 @@ class MemoRepositoryImplTest {
     @Test
     fun `saveMemo delegates to synchronizer`() =
         runTest {
-            coEvery { synchronizer.saveMemo(any(), any()) } just runs
+            coEvery { synchronizer.saveMemoAsync(any(), any()) } just runs
             repository.saveMemo("content", timestamp = 123L)
-            coVerify(exactly = 1) { synchronizer.saveMemo("content", 123L) }
+            coVerify(exactly = 1) { synchronizer.saveMemoAsync("content", 123L) }
         }
 
     @Test
     fun `saveMemo propagates synchronizer exception`() =
         runTest {
             coEvery {
-                synchronizer.saveMemo(any(), any())
+                synchronizer.saveMemoAsync(any(), any())
             } throws IllegalStateException("sync failed")
 
             val thrown =
